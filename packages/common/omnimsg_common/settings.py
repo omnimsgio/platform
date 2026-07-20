@@ -37,18 +37,36 @@ class Settings(BaseSettings):
     )
     default_tenant_id: str = Field(
         default="ten_local_dev",
-        description="Stub tenant id until API-key tenancy is implemented",
+        description="Local seed tenant id (scripts/seed-local-tenant.sh)",
+    )
+    redis_events_delivery: str = Field(
+        default="events:delivery",
+        description="Delivery event list suffix (under redis_key_prefix)",
+    )
+    rate_limit_per_minute: int = Field(
+        default=60,
+        ge=1,
+        description="Fixed-window API key rate limit (requests per minute)",
     )
     app_version: str = Field(default="0.1.0")
     log_level: str = Field(default="INFO")
 
-    @property
-    def outbound_queue_key(self) -> str:
+    def _prefixed_key(self, suffix: str) -> str:
         prefix = self.redis_key_prefix
         if not prefix.endswith(":"):
             prefix = f"{prefix}:"
-        suffix = self.redis_queue_outbound.lstrip(":")
-        return f"{prefix}{suffix}"
+        return f"{prefix}{suffix.lstrip(':')}"
+
+    @property
+    def outbound_queue_key(self) -> str:
+        return self._prefixed_key(self.redis_queue_outbound)
+
+    @property
+    def delivery_events_key(self) -> str:
+        return self._prefixed_key(self.redis_events_delivery)
+
+    def rate_limit_key(self, api_key_id: str) -> str:
+        return self._prefixed_key(f"rl:{api_key_id}")
 
 
 @lru_cache

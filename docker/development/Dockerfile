@@ -9,6 +9,7 @@ WORKDIR /app
 
 COPY pyproject.toml README.md ./
 COPY packages/common ./packages/common
+COPY packages/providers ./packages/providers
 COPY apps/gateway ./apps/gateway
 COPY apps/api ./apps/api
 COPY apps/worker ./apps/worker

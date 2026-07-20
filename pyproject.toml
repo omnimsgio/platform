@@ -11,10 +11,13 @@ requires-python = ">=3.12"
 license = { text = "Proprietary" }
 authors = [{ name = "FinestAR", email = "hello@finestar.hr" }]
 dependencies = [
+  "alembic>=1.14.0",
   "fastapi>=0.115.0",
   "httpx>=0.28.0",
+  "psycopg[binary]>=3.2.0",
   "pydantic-settings>=2.6.0",
   "redis>=5.2.0",
+  "sqlalchemy>=2.0.36",
   "uvicorn[standard]>=0.32.0",
 ]
 
@@ -29,16 +32,30 @@ dev = [
 omnimsg-gateway = "omnimsg_gateway.main:run"
 omnimsg-api = "omnimsg_api.main:run"
 omnimsg-worker = "omnimsg_worker.main:run"
+omnimsg-migrate = "omnimsg_common.db.migrate:main"
 
 [tool.setuptools.packages.find]
-where = ["packages/common", "apps/gateway", "apps/api", "apps/worker"]
-include = ["omnimsg_common*", "omnimsg_gateway*", "omnimsg_api*", "omnimsg_worker*"]
+where = [
+  "packages/common",
+  "packages/providers",
+  "apps/gateway",
+  "apps/api",
+  "apps/worker",
+]
+include = [
+  "omnimsg_common*",
+  "omnimsg_providers*",
+  "omnimsg_gateway*",
+  "omnimsg_api*",
+  "omnimsg_worker*",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = [
   "packages/common",
+  "packages/providers",
   "apps/gateway",
   "apps/api",
   "apps/worker",

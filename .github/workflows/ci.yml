@@ -1,5 +1,5 @@
-# Foundation CI — lint, smoke tests, contract presence.
-# Does not depend on local Traefik / PostGIS / Redis.
+# API-phase CI — lint, migrations, Postgres/Redis integration tests, OpenAPI.
+# Does not depend on local Traefik / shared PostGIS stacks.
 
 name: CI
 
@@ -16,6 +16,34 @@ jobs:
   lint-test:
     name: Ruff + pytest + OpenAPI
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: omnimsgio
+          POSTGRES_PASSWORD: omnimsgio
+          POSTGRES_DB: omnimsgio
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U omnimsgio -d omnimsgio"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://omnimsgio:omnimsgio@localhost:5432/omnimsgio
+      REDIS_URL: redis://localhost:6379/3
+      REDIS_KEY_PREFIX: omnimsgio:
+      RATE_LIMIT_PER_MINUTE: "60"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,7 +60,10 @@ jobs:
       - name: Ruff
         run: ruff check apps packages tests
 
-      - name: Pytest smoke
+      - name: Apply migrations
+        run: omnimsg-migrate upgrade head
+
+      - name: Pytest
         run: pytest -q
 
       - name: OpenAPI contract present

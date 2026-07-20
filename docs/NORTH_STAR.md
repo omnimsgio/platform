@@ -117,19 +117,20 @@ The following are explicitly out of v1 scope:
 | ADRs (0001–0017) | Done | Includes stack (0016) and Meta Tech Provider path (0017) |
 | Product positioning | Done | omnimsg.io, FinestAR, Tech Provider GTM |
 | NORTH_STAR | Done | This document |
-| OpenAPI contracts | Not started | `packages/contracts/openapi/` |
-| Event contracts | Not started | `packages/contracts/events/` |
-| apps/gateway | Not started | Edge auth, routing, webhook ingress |
-| apps/api | Not started | Business logic, `/v1/` endpoints |
-| Execution Engine | Not started | Orchestration layer in API/worker |
-| apps/worker | Not started | Async processing |
-| packages/providers/whatsapp | Not started | First channel adapter (Meta Cloud API) |
+| OpenAPI contracts | Done | `/v1/health`, `/v1/messages`, `GET /v1/messages/{id}`, Bearer security |
+| Event contracts | Done | `message.queued.v1`, `message.delivery_updated.v1`, `webhook.inbound.received.v1` |
+| apps/gateway | Done | Bearer API-key auth, Redis rate limit, proxy + public `/health` |
+| apps/api | Done | Persist + idempotency, internal auth resolve, ADR-0015 validation |
+| Schema / migrations | Done | Alembic: `tenants`, `api_keys`, `messages`; local seed script |
+| Execution Engine | In progress | Worker stub status + delivery events; provider ABC/stub |
+| apps/worker | Done | Dequeue → stub provider → status update → delivery event |
+| packages/providers/whatsapp | Not started | First real channel adapter (Meta Cloud API) — channels phase |
 | packages/providers/sms, email, rcs, push | Not started | Future channels |
 | packages/sdk-* | Not started | Post-OpenAPI stabilization |
 | apps/portal | Not started | Post-API maturity |
-| Docker Compose (local dev) | Not started | `docker/development/` |
+| Docker Compose (local dev) | Done | App-only Compose on shared Traefik / Postgres / Redis |
 | infrastructure/observability | Not started | Metrics, tracing, dashboards |
-| CI workflows | Not started | `.github/workflows/` |
+| CI workflows | Done | Ruff, migrations, Postgres/Redis pytest, OpenAPI presence |
 | Meta Embedded Signup / App Review | Not started | api / channels phases |
 
 ## Related Documents

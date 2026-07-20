@@ -7,6 +7,7 @@ info:
 
     Contract-first foundation seed (ADR-0005). Breaking changes require a new
     major path version (ADR-0010). Errors follow the uniform error model (ADR-0015).
+    Authentication uses Bearer API keys at the gateway (ADR-0012).
   contact:
     name: FinestAR
     url: https://finestar.hr/
@@ -20,6 +21,8 @@ tags:
     description: Service health probes
   - name: Messages
     description: Outbound message commands
+security:
+  - BearerAuth: []
 paths:
   /v1/health:
     get:
@@ -27,6 +30,7 @@ paths:
       tags: [Health]
       summary: Health check
       description: Returns service liveness for load balancers and probes.
+      security: []
       responses:
         "200":
           description: Service is healthy
@@ -81,7 +85,48 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
+  /v1/messages/{message_id}:
+    get:
+      operationId: getMessage
+      tags: [Messages]
+      summary: Get message by id
+      description: Returns a tenant-scoped message including current delivery status.
+      parameters:
+        - name: message_id
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        "200":
+          description: Message found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              examples:
+                queued:
+                  $ref: "#/components/examples/GetMessageQueued"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: omni_…
+      description: |
+        Tenant API key issued by OmniMsg (`omni_…`). Validated at the gateway;
+        never send client-supplied tenant headers.
+
   parameters:
     IdempotencyKey:
       name: Idempotency-Key
@@ -182,6 +227,32 @@ components:
           type: string
           description: Request correlation id for support and tracing (ADR-0011)
 
+    MessageResponse:
+      type: object
+      additionalProperties: false
+      required: [id, status, channel, to, type, created_at, updated_at, correlation_id]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          description: Current message status (queued, accepted, failed, …)
+        channel:
+          type: string
+          enum: [whatsapp, sms, email, rcs, push]
+        to:
+          type: string
+        type:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        correlation_id:
+          type: string
+
     ErrorResponse:
       type: object
       additionalProperties: false
@@ -256,6 +327,17 @@ components:
         status: queued
         channel: whatsapp
         created_at: "2026-07-20T12:00:00Z"
+        correlation_id: req_01j6zq8k2n3p4r5s6t7u8v9w0y
+    GetMessageQueued:
+      summary: Message status
+      value:
+        id: msg_01j6zq8k2n3p4r5s6t7u8v9w0x
+        status: accepted
+        channel: whatsapp
+        to: "+385911234567"
+        type: text
+        created_at: "2026-07-20T12:00:00Z"
+        updated_at: "2026-07-20T12:00:01Z"
         correlation_id: req_01j6zq8k2n3p4r5s6t7u8v9w0y
     ErrorValidation:
       summary: Validation failure
