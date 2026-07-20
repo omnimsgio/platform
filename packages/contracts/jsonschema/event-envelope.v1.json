@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omnimsg.io/schemas/event-envelope.v1.json",
+  "title": "EventEnvelope",
+  "description": "Common envelope fields shared by OmniMsg platform events (ADR-0006).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "tenant_id",
+    "correlation_id",
+    "data"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "description": "Unique event identifier",
+      "minLength": 1
+    },
+    "event_type": {
+      "type": "string",
+      "description": "Versioned event type name",
+      "minLength": 1
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Owning tenant (ADR-0007 / ADR-0014)",
+      "minLength": 1
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Correlation id spanning API request and async processing",
+      "minLength": 1
+    },
+    "data": {
+      "type": "object",
+      "description": "Event-specific payload"
+    }
+  }
+}

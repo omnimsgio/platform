@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omnimsg.io/events/message.delivery_updated.v1.json",
+  "title": "message.delivery_updated.v1",
+  "description": "Emitted when the platform learns of a delivery status change for an outbound message.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "tenant_id",
+    "correlation_id",
+    "data"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "minLength": 1 },
+    "event_type": { "const": "message.delivery_updated.v1" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "correlation_id": { "type": "string", "minLength": 1 },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["message_id", "channel", "status", "updated_at"],
+      "properties": {
+        "message_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "channel": {
+          "type": "string",
+          "enum": ["whatsapp", "sms", "email", "rcs", "push"]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "accepted",
+            "sent",
+            "delivered",
+            "read",
+            "failed",
+            "undeliverable"
+          ]
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "provider": {
+          "type": "string",
+          "description": "Normalized provider identifier (e.g. meta_whatsapp)",
+          "minLength": 1
+        },
+        "error": {
+          "$ref": "../jsonschema/error.v1.json",
+          "description": "Present when status is failed or undeliverable (ADR-0015)"
+        }
+      }
+    }
+  }
+}

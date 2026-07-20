@@ -1,0 +1,14 @@
+# Default owners for the repository.
+# Replace or extend with team handles as the organization grows.
+
+* @omnimsgio
+
+# Contracts require explicit review
+/packages/contracts/ @omnimsgio
+
+# Architecture decisions
+/docs/adr/ @omnimsgio
+/docs/NORTH_STAR.md @omnimsgio
+
+# Infrastructure
+/infrastructure/ @omnimsgio

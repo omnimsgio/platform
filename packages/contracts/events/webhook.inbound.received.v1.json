@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omnimsg.io/events/webhook.inbound.received.v1.json",
+  "title": "webhook.inbound.received.v1",
+  "description": "Emitted after provider webhook ingress is accepted and normalized, before business processing.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "tenant_id",
+    "correlation_id",
+    "data"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "minLength": 1 },
+    "event_type": { "const": "webhook.inbound.received.v1" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "correlation_id": { "type": "string", "minLength": 1 },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "channel", "received_at", "payload_ref"],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "description": "Normalized provider identifier (e.g. meta_whatsapp)",
+          "minLength": 1
+        },
+        "channel": {
+          "type": "string",
+          "enum": ["whatsapp", "sms", "email", "rcs", "push"]
+        },
+        "received_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "payload_ref": {
+          "type": "string",
+          "description": "Opaque reference to the stored normalized webhook payload",
+          "minLength": 1
+        },
+        "external_event_id": {
+          "type": "string",
+          "description": "Provider-side event or message id when available"
+        },
+        "kind": {
+          "type": "string",
+          "description": "High-level webhook category after normalization",
+          "enum": [
+            "message_status",
+            "inbound_message",
+            "account_update",
+            "unknown"
+          ]
+        }
+      }
+    }
+  }
+}

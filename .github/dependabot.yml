@@ -1,0 +1,45 @@
+# Dependabot configuration
+# Ecosystem updates will activate once dependency manifests exist in the repository.
+# See: https://docs.github.com/en/code-security/dependabot
+
+version: 2
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+  # Uncomment when Python dependencies are introduced (e.g. apps/api, packages/sdk-python)
+  # - package-ecosystem: "pip"
+  #   directory: "/"
+  #   schedule:
+  #     interval: "weekly"
+  #   open-pull-requests-limit: 5
+  #   labels:
+  #     - "dependencies"
+  #     - "python"
+
+  # Uncomment when Node.js dependencies are introduced (e.g. apps/portal, packages/sdk-js)
+  # - package-ecosystem: "npm"
+  #   directory: "/"
+  #   schedule:
+  #     interval: "weekly"
+  #   open-pull-requests-limit: 5
+  #   labels:
+  #     - "dependencies"
+  #     - "javascript"
+
+  # Uncomment when Go modules are introduced (e.g. packages/sdk-go)
+  # - package-ecosystem: "gomod"
+  #   directory: "/"
+  #   schedule:
+  #     interval: "weekly"
+  #   open-pull-requests-limit: 5
+  #   labels:
+  #     - "dependencies"
+  #     - "go"

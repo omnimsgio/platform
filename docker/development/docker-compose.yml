@@ -1,0 +1,79 @@
+# OmniMsg local apps only — Postgres / Redis / Traefik come from shared /opt/stacks.
+# Prerequisites:
+#   data:   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+#   redis:  docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+#   traefik: already on network `proxy`
+#
+# From repo root:
+#   docker compose -f docker/development/docker-compose.yml --env-file .env up -d --build
+
+name: omnimsgio
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: docker/development/Dockerfile
+    image: omnimsgio-apps:local
+    container_name: omnimsgio-api
+    command: ["omnimsg-api"]
+    env_file:
+      - ../../.env
+    networks:
+      - proxy
+      - data_default
+      - redis_default
+    restart: unless-stopped
+
+  gateway:
+    image: omnimsgio-apps:local
+    pull_policy: never
+    container_name: omnimsgio-gateway
+    command: ["omnimsg-gateway"]
+    env_file:
+      - ../../.env
+    environment:
+      API_URL: http://api:8000
+    depends_on:
+      - api
+    networks:
+      - proxy
+      - data_default
+      - redis_default
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      # HTTP (entrypoint redirects to HTTPS locally/prod)
+      - traefik.http.routers.omnimsgio.rule=Host(`omnimsgio.localhost`)
+      - traefik.http.routers.omnimsgio.entrypoints=web
+      - traefik.http.routers.omnimsgio.service=omnimsgio
+      # HTTPS
+      - traefik.http.routers.omnimsgio-secure.rule=Host(`omnimsgio.localhost`)
+      - traefik.http.routers.omnimsgio-secure.entrypoints=websecure
+      - traefik.http.routers.omnimsgio-secure.tls=true
+      - traefik.http.routers.omnimsgio-secure.service=omnimsgio
+      - traefik.http.services.omnimsgio.loadbalancer.server.port=8000
+    restart: unless-stopped
+
+  worker:
+    image: omnimsgio-apps:local
+    pull_policy: never
+    container_name: omnimsgio-worker
+    command: ["omnimsg-worker"]
+    env_file:
+      - ../../.env
+    depends_on:
+      - api
+    networks:
+      - proxy
+      - data_default
+      - redis_default
+    restart: unless-stopped
+
+networks:
+  proxy:
+    external: true
+  data_default:
+    external: true
+  redis_default:
+    external: true

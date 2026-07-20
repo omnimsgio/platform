@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omnimsg.io/schemas/error.v1.json",
+  "title": "ErrorBody",
+  "description": "Normalized platform error metadata (ADR-0015). Used by the HTTP API and analogous event failure fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["code", "message", "retryable", "correlation_id"],
+  "properties": {
+    "code": {
+      "type": "string",
+      "description": "Stable platform error code",
+      "minLength": 1
+    },
+    "message": {
+      "type": "string",
+      "description": "Human-readable summary safe for operators",
+      "minLength": 1
+    },
+    "retryable": {
+      "type": "boolean",
+      "description": "Whether the operation may be safely retried"
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Correlation id for support and observability (ADR-0011)",
+      "minLength": 1
+    },
+    "details": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["field", "message"],
+        "properties": {
+          "field": { "type": "string" },
+          "message": { "type": "string" },
+          "code": { "type": "string" }
+        }
+      }
+    }
+  }
+}

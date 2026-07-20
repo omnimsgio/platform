@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omnimsg.io/events/message.queued.v1.json",
+  "title": "message.queued.v1",
+  "description": "Emitted when an outbound message has been accepted by the API and placed on the delivery queue.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "tenant_id",
+    "correlation_id",
+    "data"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "minLength": 1 },
+    "event_type": { "const": "message.queued.v1" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "correlation_id": { "type": "string", "minLength": 1 },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["message_id", "channel", "to", "queued_at"],
+      "properties": {
+        "message_id": {
+          "type": "string",
+          "description": "Platform message id returned by POST /v1/messages",
+          "minLength": 1
+        },
+        "channel": {
+          "type": "string",
+          "enum": ["whatsapp", "sms", "email", "rcs", "push"]
+        },
+        "to": {
+          "type": "string",
+          "minLength": 1
+        },
+        "queued_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    }
+  }
+}

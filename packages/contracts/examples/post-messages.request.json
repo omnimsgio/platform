@@ -1,0 +1,11 @@
+{
+  "channel": "whatsapp",
+  "to": "+385911234567",
+  "type": "text",
+  "text": {
+    "body": "Hello from OmniMsg"
+  },
+  "metadata": {
+    "campaign": "welcome"
+  }
+}

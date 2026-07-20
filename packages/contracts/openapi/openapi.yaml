@@ -1,0 +1,271 @@
+openapi: 3.1.0
+info:
+  title: OmniMsg API
+  version: 1.0.0
+  description: |
+    Public HTTP API for OmniMsg (omnimsg.io).
+
+    Contract-first foundation seed (ADR-0005). Breaking changes require a new
+    major path version (ADR-0010). Errors follow the uniform error model (ADR-0015).
+  contact:
+    name: FinestAR
+    url: https://finestar.hr/
+servers:
+  - url: https://api.omnimsg.io
+    description: Production
+  - url: http://omnimsgio.localhost
+    description: Local development (via Traefik → gateway)
+tags:
+  - name: Health
+    description: Service health probes
+  - name: Messages
+    description: Outbound message commands
+paths:
+  /v1/health:
+    get:
+      operationId: getHealth
+      tags: [Health]
+      summary: Health check
+      description: Returns service liveness for load balancers and probes.
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              examples:
+                ok:
+                  $ref: "#/components/examples/HealthOk"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /v1/messages:
+    post:
+      operationId: createMessage
+      tags: [Messages]
+      summary: Queue an outbound message
+      description: |
+        Accepts a send command and queues it for asynchronous delivery.
+        Returns immediately with a platform message id; delivery status is
+        reported via events (`message.queued.v1`, `message.delivery_updated.v1`).
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMessageRequest"
+            examples:
+              textWhatsApp:
+                $ref: "#/components/examples/CreateMessageText"
+      responses:
+        "202":
+          description: Message accepted and queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateMessageResponse"
+              examples:
+                queued:
+                  $ref: "#/components/examples/CreateMessageQueued"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Optional client-supplied key to deduplicate retries of the same send.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+
+  responses:
+    Error:
+      description: Uniform platform error (ADR-0015)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            validation:
+              $ref: "#/components/examples/ErrorValidation"
+
+  schemas:
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        version:
+          type: string
+          description: Optional build or API version string
+
+    CreateMessageRequest:
+      type: object
+      additionalProperties: false
+      required: [channel, to, type]
+      properties:
+        channel:
+          type: string
+          description: Messaging channel
+          enum: [whatsapp, sms, email, rcs, push]
+        to:
+          type: string
+          description: Destination address (E.164 for phone channels, email for email)
+          minLength: 1
+          maxLength: 320
+        type:
+          type: string
+          description: Message payload type
+          enum: [text]
+        text:
+          $ref: "#/components/schemas/TextBody"
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          description: Optional client metadata echoed on related events
+      allOf:
+        - if:
+            properties:
+              type:
+                const: text
+          then:
+            required: [text]
+
+    TextBody:
+      type: object
+      additionalProperties: false
+      required: [body]
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 4096
+
+    CreateMessageResponse:
+      type: object
+      additionalProperties: false
+      required: [id, status, channel, created_at]
+      properties:
+        id:
+          type: string
+          description: Platform message identifier
+          examples: [msg_01hxyz...]
+        status:
+          type: string
+          enum: [queued]
+        channel:
+          type: string
+          enum: [whatsapp, sms, email, rcs, push]
+        created_at:
+          type: string
+          format: date-time
+        correlation_id:
+          type: string
+          description: Request correlation id for support and tracing (ADR-0011)
+
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      description: Uniform API error envelope (ADR-0015)
+      properties:
+        error:
+          $ref: "#/components/schemas/ErrorBody"
+
+    ErrorBody:
+      type: object
+      additionalProperties: false
+      required: [code, message, retryable, correlation_id]
+      properties:
+        code:
+          type: string
+          description: Stable platform error code
+          examples:
+            - validation_error
+            - unauthorized
+            - not_found
+            - conflict
+            - rate_limited
+            - upstream_failure
+        message:
+          type: string
+          description: Human-readable summary safe to show to operators
+        retryable:
+          type: boolean
+          description: Whether the client may safely retry the request
+        correlation_id:
+          type: string
+          description: Correlation id for support and observability (ADR-0011)
+        details:
+          type: array
+          description: Optional field-level or structured detail entries
+          items:
+            $ref: "#/components/schemas/ErrorDetail"
+
+    ErrorDetail:
+      type: object
+      additionalProperties: false
+      required: [field, message]
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+        code:
+          type: string
+
+  examples:
+    HealthOk:
+      summary: Healthy service
+      value:
+        status: ok
+        version: "1.0.0"
+    CreateMessageText:
+      summary: Queue a WhatsApp text message
+      value:
+        channel: whatsapp
+        to: "+385911234567"
+        type: text
+        text:
+          body: Hello from OmniMsg
+        metadata:
+          campaign: welcome
+    CreateMessageQueued:
+      summary: Accepted send
+      value:
+        id: msg_01j6zq8k2n3p4r5s6t7u8v9w0x
+        status: queued
+        channel: whatsapp
+        created_at: "2026-07-20T12:00:00Z"
+        correlation_id: req_01j6zq8k2n3p4r5s6t7u8v9w0y
+    ErrorValidation:
+      summary: Validation failure
+      value:
+        error:
+          code: validation_error
+          message: Request validation failed
+          retryable: false
+          correlation_id: req_01j6zq8k2n3p4r5s6t7u8v9w0z
+          details:
+            - field: to
+              message: Must be a valid E.164 phone number
+              code: invalid_format
