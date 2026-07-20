@@ -1,11 +1,20 @@
-"""Postgres ORM models for tenants, API keys, and messages."""
+"""Postgres ORM models for tenants, API keys, WhatsApp accounts, and messages."""
 
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, UniqueConstraint, func, text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -34,6 +43,9 @@ class Tenant(Base):
 
     api_keys: Mapped[list[ApiKey]] = relationship(back_populates="tenant")
     messages: Mapped[list[Message]] = relationship(back_populates="tenant")
+    whatsapp_accounts: Mapped[list[TenantWhatsappAccount]] = relationship(
+        back_populates="tenant"
+    )
 
 
 class ApiKey(Base):
@@ -57,6 +69,50 @@ class ApiKey(Base):
     )
 
     tenant: Mapped[Tenant] = relationship(back_populates="api_keys")
+
+
+class TenantWhatsappAccount(Base):
+    """Per-tenant WhatsApp Cloud API credentials (phone_number_id → tenant).
+
+    ``business_access_token`` is stored plaintext in v1; encrypt at rest later.
+    """
+
+    __tablename__ = "tenant_whatsapp_accounts"
+    __table_args__ = (
+        UniqueConstraint("phone_number_id", name="uq_tenant_whatsapp_phone_number_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    waba_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    phone_number_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Plaintext in v1 — plan encryption before production multi-tenant.
+    business_access_token: Mapped[str] = mapped_column(String(2048), nullable=False)
+    credit_line_attached: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("false"),
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    tenant: Mapped[Tenant] = relationship(back_populates="whatsapp_accounts")
 
 
 class Message(Base):

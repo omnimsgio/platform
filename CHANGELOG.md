@@ -12,9 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GTM pivot to Meta WhatsApp **Solution Partner** (ADR-0018): credit line toward Meta, OmniMsg invoices clients; ADR-0017 Tech Provider path superseded
 - North Star, README, and ADR index updated for Solution Partner GTM; Solution Partner ops runbook and SP technical milestones documented
 - North Star: Meta SP / App Review / credit line marked **In progress** (ops kickoff tracked outside the repo)
+- North Star Implementation Status: Meta webhook ingress, `tenant_whatsapp_accounts`, WhatsApp Cloud API adapter, and worker inbound/outbound marked Done / In progress for channels slice
 
 ### Added
 
+- Channels slice: `tenant_whatsapp_accounts` + seed from Meta env; gateway `GET`/`POST /webhooks/meta/whatsapp` (hub verify, HMAC, inbound enqueue); `packages/providers/whatsapp` Meta Cloud API adapter; worker outbound WhatsApp + inbound `message_status` delivery updates
+- Tests for Meta signature/hub challenge, Graph request shape (httpx mock), webhook → inbound queue, and outbound WhatsApp with mocked Graph API
 - Meta SP/MBP ops kickoff: runbook kickoff status, `.env.example` `META_VERIFY_TOKEN` / `META_APP_SECRET`, out-of-repo tracker `/opt/stacks/ops/omnimsgio-meta-sp-kickoff.md`
 - ADR-0018 Meta WhatsApp Solution Partner as primary v1 channel path
 - Runbook `docs/providers/meta-whatsapp-solution-partner.md` (assets, App Review, tokens, credit line, tech milestones)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from typing import Any
 
 import redis
@@ -38,3 +39,20 @@ def dequeue_json(
         return None
     _key, raw = item
     return json.loads(raw)
+
+
+def dequeue_json_any(
+    client: redis.Redis,
+    queue_keys: Sequence[str],
+    *,
+    timeout_seconds: int = 5,
+) -> tuple[str, dict[str, Any]] | None:
+    """Blocking pop from the first non-empty queue (key order = priority)."""
+    keys = [key for key in queue_keys if key]
+    if not keys:
+        return None
+    item = client.brpop(list(keys), timeout=timeout_seconds)
+    if item is None:
+        return None
+    key, raw = item
+    return str(key), json.loads(raw)

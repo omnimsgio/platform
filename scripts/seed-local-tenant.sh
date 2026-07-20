@@ -11,6 +11,8 @@
 #   SEED_TENANT_NAME      (default: Local Dev)
 #   SEED_API_KEY          (optional; generated if unset)
 #   DEFAULT_TENANT_ID     (alias for SEED_TENANT_ID)
+#   META_WABA_ID / META_PHONE_NUMBER_ID / META_BUSINESS_ACCESS_TOKEN
+#                         (optional; when all set, upsert tenant_whatsapp_accounts)
 
 set -euo pipefail
 
@@ -39,6 +41,9 @@ echo "Seeding tenant '${SEED_TENANT_ID}'..."
 SEED_TENANT_ID="${SEED_TENANT_ID}" \
 SEED_TENANT_NAME="${SEED_TENANT_NAME}" \
 SEED_API_KEY="${SEED_API_KEY:-}" \
+META_WABA_ID="${META_WABA_ID:-}" \
+META_PHONE_NUMBER_ID="${META_PHONE_NUMBER_ID:-}" \
+META_BUSINESS_ACCESS_TOKEN="${META_BUSINESS_ACCESS_TOKEN:-}" \
 python3 - <<'PY'
 from __future__ import annotations
 
@@ -46,7 +51,7 @@ import os
 import sys
 
 from omnimsg_common.auth import generate_api_key, hash_api_key, key_display_prefix
-from omnimsg_common.db.models import ApiKey, Tenant
+from omnimsg_common.db.models import ApiKey, Tenant, TenantWhatsappAccount
 from omnimsg_common.db.session import session_scope
 from omnimsg_common.ids import new_id
 from sqlalchemy import select
@@ -56,6 +61,15 @@ tenant_name = os.environ["SEED_TENANT_NAME"]
 raw_key = os.environ.get("SEED_API_KEY") or generate_api_key()
 key_hash = hash_api_key(raw_key)
 prefix = key_display_prefix(raw_key)
+
+meta_waba_id = (os.environ.get("META_WABA_ID") or "").strip()
+meta_phone_number_id = (os.environ.get("META_PHONE_NUMBER_ID") or "").strip()
+meta_business_access_token = (
+    os.environ.get("META_BUSINESS_ACCESS_TOKEN") or ""
+).strip()
+seed_whatsapp = bool(
+    meta_waba_id and meta_phone_number_id and meta_business_access_token
+)
 
 with session_scope() as session:
     tenant = session.get(Tenant, tenant_id)
@@ -88,10 +102,53 @@ with session_scope() as session:
             )
         )
 
+    if seed_whatsapp:
+        account = session.scalars(
+            select(TenantWhatsappAccount).where(
+                TenantWhatsappAccount.phone_number_id == meta_phone_number_id
+            )
+        ).first()
+        if account is None:
+            account = session.scalars(
+                select(TenantWhatsappAccount).where(
+                    TenantWhatsappAccount.tenant_id == tenant_id
+                )
+            ).first()
+        if account is None:
+            session.add(
+                TenantWhatsappAccount(
+                    id=new_id("twa"),
+                    tenant_id=tenant_id,
+                    waba_id=meta_waba_id,
+                    phone_number_id=meta_phone_number_id,
+                    business_access_token=meta_business_access_token,
+                    credit_line_attached=False,
+                    status="active",
+                )
+            )
+        else:
+            account.tenant_id = tenant_id
+            account.waba_id = meta_waba_id
+            account.phone_number_id = meta_phone_number_id
+            account.business_access_token = meta_business_access_token
+            account.status = "active"
+
 print(raw_key)
 print(
     f"Seeded tenant={tenant_id} key_prefix={prefix} "
     "(plaintext key printed above; store it securely)",
     file=sys.stderr,
 )
+if seed_whatsapp:
+    print(
+        f"Seeded WhatsApp account phone_number_id={meta_phone_number_id} "
+        f"waba_id={meta_waba_id}",
+        file=sys.stderr,
+    )
+else:
+    print(
+        "WhatsApp account not seeded "
+        "(set META_WABA_ID, META_PHONE_NUMBER_ID, META_BUSINESS_ACCESS_TOKEN)",
+        file=sys.stderr,
+    )
 PY

@@ -134,12 +134,12 @@ The following are explicitly out of v1 scope:
 | NORTH_STAR | Done | This document |
 | OpenAPI contracts | Done | `/v1/health`, `/v1/messages`, `GET /v1/messages/{id}`, Bearer security |
 | Event contracts | Done | `message.queued.v1`, `message.delivery_updated.v1`, `webhook.inbound.received.v1` |
-| apps/gateway | Done | Bearer API-key auth, Redis rate limit, proxy + public `/health`; Meta webhook verify TBD |
+| apps/gateway | Done | Bearer API-key auth, Redis rate limit, proxy + public `/health`; Meta webhook hub verify + HMAC ingest → inbound queue |
 | apps/api | Done | Persist + idempotency, internal auth resolve, ADR-0015 validation |
-| Schema / migrations | Done | Alembic: `tenants`, `api_keys`, `messages`; local seed script |
-| Execution Engine | In progress | Worker stub status + delivery events; provider ABC/stub |
-| apps/worker | Done | Dequeue → stub provider → status update → delivery event |
-| packages/providers/whatsapp | Not started | First real channel adapter (Meta Cloud API) — channels phase |
+| Schema / migrations | Done | Alembic: `tenants`, `api_keys`, `messages`, `tenant_whatsapp_accounts`; local seed script |
+| Execution Engine | In progress | Worker outbound Meta WhatsApp + inbound status; provider ABC/stub for other channels |
+| apps/worker | Done | Outbound WhatsApp via Cloud API; inbound `message_status` → status + `message.delivery_updated.v1` |
+| packages/providers/whatsapp | Done | Meta Cloud API adapter (`whatsapp.meta`); Graph send + error mapping |
 | packages/providers/sms, email, rcs, push | Not started | Future channels |
 | packages/sdk-* | Not started | Post-OpenAPI stabilization |
 | apps/portal | Not started | Post-API maturity; Embedded Signup UX |

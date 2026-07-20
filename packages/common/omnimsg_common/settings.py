@@ -31,6 +31,10 @@ class Settings(BaseSettings):
         default="queue:outbound",
         description="Outbound message queue suffix (under redis_key_prefix)",
     )
+    redis_queue_inbound: str = Field(
+        default="queue:inbound",
+        description="Inbound webhook queue suffix (under redis_key_prefix)",
+    )
     api_url: str = Field(
         default="http://api:8000",
         description="Internal API base URL for gateway proxying",
@@ -42,6 +46,14 @@ class Settings(BaseSettings):
     redis_events_delivery: str = Field(
         default="events:delivery",
         description="Delivery event list suffix (under redis_key_prefix)",
+    )
+    meta_verify_token: str = Field(
+        default="",
+        description="Meta WhatsApp webhook hub.verify_token (META_VERIFY_TOKEN)",
+    )
+    meta_app_secret: str = Field(
+        default="",
+        description="Meta app secret for X-Hub-Signature-256 (META_APP_SECRET)",
     )
     rate_limit_per_minute: int = Field(
         default=60,
@@ -60,6 +72,10 @@ class Settings(BaseSettings):
     @property
     def outbound_queue_key(self) -> str:
         return self._prefixed_key(self.redis_queue_outbound)
+
+    @property
+    def inbound_queue_key(self) -> str:
+        return self._prefixed_key(self.redis_queue_inbound)
 
     @property
     def delivery_events_key(self) -> str:

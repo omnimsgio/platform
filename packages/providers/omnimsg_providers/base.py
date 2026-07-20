@@ -14,6 +14,7 @@ class SendResult:
     provider: str
     error_code: str | None = None
     error_message: str | None = None
+    provider_message_id: str | None = None
 
 
 @runtime_checkable

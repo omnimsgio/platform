@@ -45,6 +45,7 @@ where = [
 include = [
   "omnimsg_common*",
   "omnimsg_providers*",
+  "whatsapp*",
   "omnimsg_gateway*",
   "omnimsg_api*",
   "omnimsg_worker*",

@@ -28,12 +28,18 @@ def test_settings_defaults_use_redis_db_3() -> None:
         redis_url="redis://infra-redis:6379/3",
         redis_key_prefix="omnimsgio:",
         redis_queue_outbound="queue:outbound",
+        redis_queue_inbound="queue:inbound",
         redis_events_delivery="events:delivery",
+        meta_verify_token="hub-verify",
+        meta_app_secret="app-secret",
     )
     assert settings.redis_url.endswith("/3")
     assert settings.outbound_queue_key == "omnimsgio:queue:outbound"
+    assert settings.inbound_queue_key == "omnimsgio:queue:inbound"
     assert settings.delivery_events_key == "omnimsgio:events:delivery"
     assert settings.rate_limit_key("key_1") == "omnimsgio:rl:key_1"
+    assert settings.meta_verify_token == "hub-verify"
+    assert settings.meta_app_secret == "app-secret"
 
 
 def test_gateway_health() -> None:
@@ -113,8 +119,10 @@ def test_stub_provider_accepts_text() -> None:
 
 
 def test_worker_run_once_processes_job() -> None:
+    from omnimsg_common.settings import get_settings
     from omnimsg_worker.main import run_once
 
+    settings = get_settings()
     job = {
         "job_type": "outbound_message",
         "event": {
@@ -130,7 +138,10 @@ def test_worker_run_once_processes_job() -> None:
         "payload": {"type": "text", "text": {"body": "hi"}},
     }
     with patch("omnimsg_worker.main.create_redis_client") as create_client:
-        with patch("omnimsg_worker.main.dequeue_json", return_value=job) as dequeue:
+        with patch(
+            "omnimsg_worker.main.dequeue_json_any",
+            return_value=(settings.outbound_queue_key, job),
+        ) as dequeue:
             with patch("omnimsg_worker.main.process_job") as process:
                 assert run_once(timeout_seconds=1) is True
                 create_client.assert_called_once()
