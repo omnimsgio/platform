@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR-0018](ADR-0018-meta-whatsapp-solution-partner.md)
 
 ## Date
 
@@ -39,4 +39,4 @@ Implications:
 
 ### Neutral
 
-- Solution Partner / reseller is explicitly out of v1 strategy; revisiting would require a new ADR.
+- ~~Solution Partner / reseller is explicitly out of v1 strategy; revisiting would require a new ADR.~~ **Superseded:** partnership model revised in [ADR-0018](ADR-0018-meta-whatsapp-solution-partner.md) (Solution Partner + credit line).

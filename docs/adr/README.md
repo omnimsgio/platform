@@ -24,7 +24,8 @@ Product context: [omnimsg.io](https://omnimsg.io) · [FinestAR](https://finestar
 | [ADR-0014](ADR-0014-data-ownership.md) | Data Ownership |
 | [ADR-0015](ADR-0015-error-model.md) | Error Model |
 | [ADR-0016](ADR-0016-tech-stack.md) | Tech Stack |
-| [ADR-0017](ADR-0017-meta-whatsapp-tech-provider.md) | Meta WhatsApp Tech Provider as Primary v1 Channel Path |
+| [ADR-0017](ADR-0017-meta-whatsapp-tech-provider.md) | Meta WhatsApp Tech Provider as Primary v1 Channel Path *(superseded by ADR-0018)* |
+| [ADR-0018](ADR-0018-meta-whatsapp-solution-partner.md) | Meta WhatsApp Solution Partner as Primary v1 Channel Path |
 
 ## Template
 

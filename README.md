@@ -10,7 +10,7 @@ Customers integrate once with a stable HTTP API. OmniMsg routes messages across 
 
 ## Go-to-market (v1)
 
-OmniMsg is positioning as a [Meta WhatsApp Tech Provider](https://developers.facebook.com/documentation/business-messaging/whatsapp/solution-providers/get-started-for-tech-providers) (not a Solution Partner reseller): Embedded Signup, webhooks, and multi-tenant WABA messaging for client tenants. The first vertical slice is WhatsApp via Meta Cloud API.
+OmniMsg is positioning as a [Meta WhatsApp Solution Partner](https://developers.facebook.com/documentation/business-messaging/whatsapp/solution-providers/get-started-for-solution-partners): credit line toward Meta, clients do not enter a Meta payment method, and FinestAR invoices WhatsApp usage plus platform. Embedded Signup, webhooks, and multi-tenant WABA messaging (business tokens + credit-line sharing) form the first vertical slice via Meta Cloud API. See [ADR-0018](docs/adr/ADR-0018-meta-whatsapp-solution-partner.md) and the [Solution Partner runbook](docs/providers/meta-whatsapp-solution-partner.md).
 
 ## Vision
 
@@ -77,4 +77,5 @@ pytest -q
 ## Docs
 
 - [North Star](docs/NORTH_STAR.md) — vision, architecture, v1 scope, implementation status
-- [Architecture Decision Records](docs/adr/) — accepted platform decisions (ADR-0001–0017)
+- [Architecture Decision Records](docs/adr/) — accepted platform decisions (ADR-0001–0018)
+- [Meta WhatsApp Solution Partner runbook](docs/providers/meta-whatsapp-solution-partner.md) — Meta Business ops (App Review, tokens, credit line); kickoff tracker: `/opt/stacks/ops/omnimsgio-meta-sp-kickoff.md`
