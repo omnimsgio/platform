@@ -4,6 +4,8 @@ Accepted decisions that shape OmniMsg. Propose changes via [RFCs](../rfcs/) when
 
 Product context: [omnimsg.io](https://omnimsg.io) · [FinestAR](https://finestar.hr/) · [North Star](../NORTH_STAR.md)
 
+**Architecture Locked:** When an ADR’s Status includes *Architecture Locked*, PRs that change that area must include a new ADR, an ADR amendment, or an explicit confirmation that the change only implements the existing decision — see [CONTRIBUTING.md](../../CONTRIBUTING.md#architecture-locked-review-rule).
+
 ## Index
 
 | ADR | Title |
@@ -26,6 +28,9 @@ Product context: [omnimsg.io](https://omnimsg.io) · [FinestAR](https://finestar
 | [ADR-0016](ADR-0016-tech-stack.md) | Tech Stack |
 | [ADR-0017](ADR-0017-meta-whatsapp-tech-provider.md) | Meta WhatsApp Tech Provider as Primary v1 Channel Path *(superseded by ADR-0018)* |
 | [ADR-0018](ADR-0018-meta-whatsapp-solution-partner.md) | Meta WhatsApp Solution Partner as Primary v1 Channel Path |
+| [ADR-0019](ADR-0019-marketing-events-attribution.md) | Marketing Domain and Attribution Events *(Architecture Locked; Conversation feature frozen)* |
+| [ADR-0020](ADR-0020-tenant-whatsapp-connection-lifecycle.md) | Tenant WhatsApp Connection Lifecycle *(Architecture Locked; Provisioning Lifecycle v1 Feature Complete / frozen)* |
+| [ADR-0020 checklist](ADR-0020-lifecycle-v1-release-checklist.md) | Provisioning Lifecycle v1 release checklist *(governance closeout; companion to ADR-0020)* |
 
 ## Template
 
@@ -36,7 +41,7 @@ New ADRs use the next free number and this shape:
 
 ## Status
 
-Proposed | Accepted | Superseded by ADR-00YY
+Proposed | Accepted | Accepted — Architecture Locked | Superseded by ADR-00YY
 
 ## Date
 
