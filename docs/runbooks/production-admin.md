@@ -34,7 +34,15 @@ curl -sS -o /dev/null -w '%{http_code}\n' -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
 
 `GET /admin/home` shows DB / Redis / app version / environment / contract version / read-only flag.
 
-SQLAdmin UI: `/admin/` — Audit Events (C1); **Tenant** (C2.1); **API Keys** (C2.2); WhatsApp / Message (C2.3–C2.4, each deployable alone).
+SQLAdmin UI: `/admin/` — Audit Events (C1); **Tenant** (C2.1); **API Keys** (C2.2); **WhatsApp Accounts** (C2.3); Message (C2.4, deployable alone).
+
+### WhatsApp accounts (C2.3)
+
+- Read-mostly list/details; `business_access_token` masked (`••••` + last 4).
+- No create/edit/delete of credentials or free-form status.
+- **Retry provisioning** (ERROR only) → `RetryService` → `transition()`.
+- **Mark disconnected** (READY only) → `transition(..., DISCONNECTED)`.
+- CI: `scripts/check-whatsapp-lifecycle-ssot.sh` + `test_admin_whatsapp_source_never_assigns_status_directly`.
 
 ### API Key rotation (C2.2)
 

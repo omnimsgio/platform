@@ -334,9 +334,11 @@ a{{color:#79b8ff}}
     # C2 views — each deployable independently (ADR-0022).
     from omnimsg_api.admin_apikey import ApiKeyAdmin
     from omnimsg_api.admin_tenant import TenantAdmin
+    from omnimsg_api.admin_whatsapp import TenantWhatsappAccountAdmin
 
     admin.add_view(TenantAdmin)
     admin.add_view(ApiKeyAdmin)
+    admin.add_view(TenantWhatsappAccountAdmin)
 
     logger.info(
         "admin mounted at /admin read_only=%s",

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Fail if TenantWhatsappAccount.status is assigned outside the lifecycle module.
 # ADR-0020: only transition()/bootstrap_ready() may mutate WhatsApp connection status.
+# ADR-0022 C2.3: SQLAdmin must go through transition()/RetryService — never ORM.status=.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
