@@ -206,6 +206,9 @@ Out of scope forever under ADR-0019: campaign management, audience creation, ad 
 |-----------|--------|-------|
 | Repository skeleton | Done | Apps, packages, infrastructure, docs layout |
 | ADRs (0001–0022) | Done | Stack (0016); SP (0018); Marketing (0019); WA lifecycle (0020); Public API (0021); Ops Admin (0022) |
+| Product positioning | Done | omnimsg.io, FinestAR, Solution Partner GTM |
+| NORTH_STAR | Done | This document |
+| OpenAPI contracts | Done | Contract SSOT + edge `/openapi.json` / `/docs` / `/redoc`; `x-contract-version` `1.0.0`; readiness `/v1/health` |
 | Public API surface (ADR-0021) | **Done (production)** | 2026-08-02 on `api.omnimsg.io`; baseline tag `cpaas-openapi-surface-v1`; [evidence](runbooks/production-openapi-surface-evidence-2026-08-02.md) |
 | Ops admin (`/admin`, ADR-0022) | In progress (C1) | Basic + IP allowlist + audit + `ADMIN_READ_ONLY`; views (C2) next |
 | Event contracts | Done | `message.queued.v1`, `message.delivery_updated.v1`, `webhook.inbound.received.v1` |
