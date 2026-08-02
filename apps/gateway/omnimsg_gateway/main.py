@@ -299,6 +299,103 @@ async def proxy_v1_health(request: Request) -> Response:
     )
 
 
+def _admin_unauthorized() -> Response:
+    return Response(
+        status_code=401,
+        content=b"Unauthorized",
+        headers={"WWW-Authenticate": 'Basic realm="OmniMsg Ops"'},
+        media_type="text/plain",
+    )
+
+
+@app.api_route(
+    "/admin/{path:path}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+)
+@app.api_route(
+    "/admin",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+)
+async def proxy_admin(request: Request, path: str = "") -> Response:
+    """Ops admin proxy — HTTP Basic only (ADR-0022); never tenant Bearer."""
+    settings = get_settings()
+    correlation_id = request.headers.get("x-correlation-id") or new_id("req")
+    request.state.correlation_id = correlation_id
+
+    if not settings.admin_enabled:
+        return _error_response(
+            503,
+            code="admin_disabled",
+            message="Admin is not configured",
+            correlation_id=correlation_id,
+        )
+
+    auth = request.headers.get("authorization")
+    if not auth or not auth.lower().startswith("basic "):
+        return _admin_unauthorized()
+    try:
+        import base64
+        import hmac as hmac_mod
+
+        raw = base64.b64decode(auth.split(" ", 1)[1].strip()).decode("utf-8")
+        user, _, password = raw.partition(":")
+        if len(user) != len(settings.admin_username) or len(password) != len(
+            settings.admin_password
+        ):
+            return _admin_unauthorized()
+        user_ok = hmac_mod.compare_digest(user, settings.admin_username)
+        pass_ok = hmac_mod.compare_digest(password, settings.admin_password)
+        if not (user_ok and pass_ok):
+            return _admin_unauthorized()
+    except (ValueError, UnicodeDecodeError):
+        return _admin_unauthorized()
+
+    suffix = path.strip("/")
+    url = f"/admin/{suffix}" if suffix else "/admin/"
+    body = await request.body()
+    headers = {
+        key: value
+        for key, value in request.headers.items()
+        if key.lower() not in HOP_BY_HOP
+    }
+    headers["x-correlation-id"] = correlation_id
+    client: httpx.AsyncClient = request.app.state.http
+    try:
+        upstream = await client.request(
+            request.method,
+            url,
+            content=body,
+            headers=headers,
+            params=request.query_params,
+        )
+    except httpx.RequestError as exc:
+        logger.warning("admin upstream unreachable: %s", exc)
+        return _error_response(
+            502,
+            code="upstream_failure",
+            message="API upstream unreachable",
+            correlation_id=correlation_id,
+            retryable=True,
+        )
+    return Response(
+        content=upstream.content,
+        status_code=upstream.status_code,
+        headers={
+            key: value
+            for key, value in upstream.headers.items()
+            if key.lower()
+            not in {
+                "content-encoding",
+                "content-length",
+                "transfer-encoding",
+                "connection",
+            }
+        }
+        | {"X-Correlation-Id": correlation_id},
+        media_type=upstream.headers.get("content-type"),
+    )
+
+
 @app.get("/webhooks/meta/whatsapp")
 async def meta_whatsapp_verify(
     hub_mode: str | None = Query(default=None, alias="hub.mode"),

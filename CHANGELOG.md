@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Ops admin C1 (ADR-0022): `/admin` Basic auth at gateway, SQLAdmin mount, `admin_audit_events` (indexes + downgrade), `ADMIN_READ_ONLY` server-side write deny, `/admin/home` readiness chips, Traefik IP allowlist, [production-admin](docs/runbooks/production-admin.md) runbook
+
 ### Changed
 
 - GTM pivot to Meta WhatsApp **Solution Partner** (ADR-0018): credit line toward Meta, OmniMsg invoices clients; ADR-0017 Tech Provider path superseded

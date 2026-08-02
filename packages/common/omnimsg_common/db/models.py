@@ -332,3 +332,31 @@ class ConversationReferral(Base):
 
     tenant: Mapped[Tenant] = relationship(back_populates="conversation_referrals")
     conversation: Mapped[Conversation] = relationship(back_populates="referrals")
+
+
+class AdminAuditEvent(Base):
+    """Ops admin mutation audit (ADR-0022)."""
+
+    __tablename__ = "admin_audit_events"
+    __table_args__ = (
+        Index("ix_admin_audit_events_created_at", "created_at"),
+        Index("ix_admin_audit_events_entity_type", "entity_type"),
+        Index("ix_admin_audit_events_entity_id", "entity_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    actor: Mapped[str] = mapped_column(String(128), nullable=False)
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    entity_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    entity_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    before: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    after: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    correlation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    request_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )

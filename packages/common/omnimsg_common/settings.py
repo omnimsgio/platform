@@ -96,7 +96,30 @@ class Settings(BaseSettings):
         default="",
         description="Optional absolute path to openapi.yaml (OPENAPI_CONTRACT_PATH)",
     )
+    admin_username: str = Field(
+        default="",
+        description="Ops admin Basic username (ADMIN_USERNAME); empty disables admin",
+    )
+    admin_password: str = Field(
+        default="",
+        description="Ops admin Basic password (ADMIN_PASSWORD); empty disables admin",
+    )
+    admin_read_only: bool = Field(
+        default=False,
+        description="When true, admin rejects all writes server-side (ADMIN_READ_ONLY)",
+    )
+    admin_allowed_cidrs: str = Field(
+        default="127.0.0.1/32",
+        description=(
+            "Comma-separated CIDRs for Traefik IP allowlist on /admin "
+            "(ADMIN_ALLOWED_CIDRS)"
+        ),
+    )
     log_level: str = Field(default="INFO")
+
+    @property
+    def admin_enabled(self) -> bool:
+        return bool(self.admin_username.strip() and self.admin_password)
 
     @property
     def cors_origins_list(self) -> list[str]:

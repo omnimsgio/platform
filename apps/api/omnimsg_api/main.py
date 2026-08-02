@@ -46,6 +46,11 @@ app = FastAPI(
     openapi_url=None,
 )
 
+# Ops admin (ADR-0022); no-op when ADMIN_USERNAME/PASSWORD unset.
+from omnimsg_api.admin import mount_admin  # noqa: E402
+
+mount_admin(app)
+
 TENANT_HEADER = "X-Tenant-Id"
 API_KEY_ID_HEADER = "X-Api-Key-Id"
 

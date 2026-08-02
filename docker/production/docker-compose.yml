@@ -51,6 +51,15 @@ services:
       - traefik.http.routers.omnimsgio-api.tls=true
       - traefik.http.routers.omnimsgio-api.tls.certresolver=lecf
       - traefik.http.routers.omnimsgio-api.service=omnimsgio-api
+      # Ops admin: higher-priority router + IP allowlist (ADR-0022).
+      - traefik.http.routers.omnimsgio-admin.rule=Host(`api.omnimsg.io`) && PathPrefix(`/admin`)
+      - traefik.http.routers.omnimsgio-admin.entrypoints=websecure
+      - traefik.http.routers.omnimsgio-admin.tls=true
+      - traefik.http.routers.omnimsgio-admin.tls.certresolver=lecf
+      - traefik.http.routers.omnimsgio-admin.priority=100
+      - traefik.http.routers.omnimsgio-admin.middlewares=omnimsgio-admin-ip
+      - traefik.http.routers.omnimsgio-admin.service=omnimsgio-api
+      - traefik.http.middlewares.omnimsgio-admin-ip.ipallowlist.sourcerange=${ADMIN_ALLOWED_CIDRS:-127.0.0.1/32}
       - traefik.http.services.omnimsgio-api.loadbalancer.server.port=8000
     restart: unless-stopped
 

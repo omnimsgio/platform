@@ -32,6 +32,7 @@ Product context: [omnimsg.io](https://omnimsg.io) · [FinestAR](https://finestar
 | [ADR-0020](ADR-0020-tenant-whatsapp-connection-lifecycle.md) | Tenant WhatsApp Connection Lifecycle *(Architecture Locked; Provisioning Lifecycle v1 Feature Complete / frozen)* |
 | [ADR-0020 checklist](ADR-0020-lifecycle-v1-release-checklist.md) | Provisioning Lifecycle v1 release checklist *(governance closeout; companion to ADR-0020)* |
 | [ADR-0021](ADR-0021-public-api-surface.md) | Public API Surface (`api.omnimsg.io`) |
+| [ADR-0022](ADR-0022-ops-admin-surface.md) | Ops Admin Surface (`/admin`) |
 
 ## Template
 
