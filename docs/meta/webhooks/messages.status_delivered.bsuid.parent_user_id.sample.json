@@ -1,0 +1,49 @@
+{
+  "tested_at": "2026-08-02T18:36:20+02:00",
+  "field": "messages",
+  "version": "v26.0",
+  "dashboard_result": "Successfully tested",
+  "test_options": {
+    "sample_type": "Status Message",
+    "status": "delivered",
+    "username_scenario": "Not opted-in",
+    "message_sent_to": "BSUID",
+    "include_parent_user_id_fields": true
+  },
+  "sample": {
+    "field": "messages",
+    "value": {
+      "messaging_product": "whatsapp",
+      "metadata": {
+        "display_phone_number": "16505551111",
+        "phone_number_id": "123456123"
+      },
+      "statuses": [
+        {
+          "id": "ABGGFlA5Fpa",
+          "status": "delivered",
+          "timestamp": "1504902988",
+          "recipient_user_id": "US.13491208655302741918",
+          "recipient_parent_user_id": "US.ENT.506847293015824",
+          "conversation": {
+            "id": "CONVERSATION_ID",
+            "expiration_timestamp": "1504903988",
+            "origin": {
+              "type": "marketing"
+            }
+          }
+        }
+      ],
+      "contacts": [
+        {
+          "profile": {
+            "name": "test user name"
+          },
+          "wa_id": "16315551181",
+          "user_id": "US.13491208655302741918",
+          "parent_user_id": "US.ENT.506847293015824"
+        }
+      ]
+    }
+  }
+}

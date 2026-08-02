@@ -14,8 +14,9 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+# Python packaging dirs at repo root only (do not ignore apps/*/src/lib).
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -216,3 +217,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local scratch / uncommitted assets
+.temp/
+
+# Node (apps/web also has its own .gitignore)
+node_modules/
+apps/web/.next/
+apps/web/out/
+.env.bak*

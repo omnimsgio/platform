@@ -1,0 +1,17 @@
+{
+  "tested_at": "2026-08-02T18:39:43+02:00",
+  "field": "message_template_status_update",
+  "version": "v26.0",
+  "dashboard_result": "Successfully tested",
+  "sample": {
+    "field": "message_template_status_update",
+    "value": {
+      "event": "APPROVED",
+      "message_template_id": 12345678,
+      "message_template_name": "my_message_template",
+      "message_template_language": "pt-BR",
+      "reason": null,
+      "message_template_category": "MARKETING"
+    }
+  }
+}

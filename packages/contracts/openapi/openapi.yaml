@@ -2,11 +2,17 @@ openapi: 3.1.0
 info:
   title: OmniMsg API
   version: 1.0.0
+  x-contract-version: "1.0.0"
   description: |
     Public HTTP API for OmniMsg (omnimsg.io).
 
     Contract-first foundation seed (ADR-0005). Breaking changes require a new
     major path version (ADR-0010). Errors follow the uniform error model (ADR-0015).
+    Authentication uses Bearer API keys at the gateway (ADR-0012).
+    Public edge surface is defined in ADR-0021.
+
+    Clients may send `X-Correlation-Id`; error bodies always include
+    `error.correlation_id` and the gateway echoes the header when present.
   contact:
     name: FinestAR
     url: https://finestar.hr/
@@ -17,19 +23,32 @@ servers:
     description: Local development (via Traefik → gateway)
 tags:
   - name: Health
-    description: Service health probes
+    description: |
+      Edge liveness is `GET /health` on the gateway (not in this contract).
+      `GET /v1/health` is API readiness (database + redis).
   - name: Messages
     description: Outbound message commands
+  - name: WhatsApp
+    description: WhatsApp account onboarding (Embedded Signup)
+security:
+  - BearerAuth: []
 paths:
   /v1/health:
     get:
       operationId: getHealth
       tags: [Health]
-      summary: Health check
-      description: Returns service liveness for load balancers and probes.
+      summary: API readiness
+      description: |
+        Returns API readiness for the authenticated surface without requiring a
+        Bearer token. Checks `database` and `redis`. Reserved keys `worker` and
+        `provider` may be null until implemented (ADR-0021).
+        HTTP 200 when required checks pass; HTTP 503 when `status` is `error`.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
       responses:
         "200":
-          description: Service is healthy
+          description: Required dependencies are healthy
           content:
             application/json:
               schema:
@@ -37,6 +56,15 @@ paths:
               examples:
                 ok:
                   $ref: "#/components/examples/HealthOk"
+        "503":
+          description: One or more required dependency checks failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              examples:
+                error:
+                  $ref: "#/components/examples/HealthError"
         default:
           $ref: "#/components/responses/Error"
 
@@ -81,8 +109,305 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
+  /v1/messages/{message_id}:
+    get:
+      operationId: getMessage
+      tags: [Messages]
+      summary: Get message by id
+      description: |
+        Returns a tenant-scoped message including current delivery status.
+        Read-only in P3 (no update/delete message endpoints).
+      parameters:
+        - name: message_id
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        "200":
+          description: Message found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              examples:
+                queued:
+                  $ref: "#/components/examples/GetMessageQueued"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /v1/conversations/{conversation_id}/messages:
+    get:
+      operationId: listConversationMessages
+      tags: [Messages]
+      summary: List conversation thread messages
+      description: |
+        Returns messages for a conversation ordered oldest → newest (`created_at ASC`).
+        Read-only in P3 — worker writes inbound/outbound; API only reads.
+      parameters:
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Thread messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationMessagesResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /v1/whatsapp/embedded-signup/start:
+    post:
+      operationId: startWhatsappEmbeddedSignup
+      tags: [WhatsApp]
+      summary: Start WhatsApp Embedded Signup
+      description: |
+        Creates or resumes a tenant WhatsApp connection row and sets lifecycle
+        status to `EMBEDDED_SIGNUP_STARTED` (ADR-0020).
+      responses:
+        "200":
+          description: Signup started (or already in progress / attached)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmbeddedSignupStartResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /v1/whatsapp/connection:
+    get:
+      operationId: getWhatsappConnection
+      tags: [WhatsApp]
+      summary: Get WhatsApp connection lifecycle
+      description: |
+        Returns the canonical WhatsApp connection status for the authenticated
+        tenant. `NOT_CONNECTED` when no account row exists.
+      responses:
+        "200":
+          description: Connection lifecycle projection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WhatsappConnectionResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /v1/whatsapp/register-phone:
+    post:
+      operationId: registerWhatsappPhone
+      tags: [WhatsApp]
+      summary: Register WhatsApp Cloud API phone
+      description: |
+        Registers the tenant phone via Meta Graph (`/{phone-number-id}/register`)
+        using a 6-digit PIN. Advances lifecycle `PHONE_PENDING` → `WEBHOOK_PENDING`.
+        Idempotent when status is already `WEBHOOK_PENDING` or later (no Graph call).
+        Concurrent calls while a provisioning lock is held return 409.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterPhoneRequest"
+      responses:
+        "200":
+          description: Phone registered (or already registered)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterPhoneResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "502":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /v1/whatsapp/provision-webhook:
+    post:
+      operationId: provisionWhatsappWebhook
+      tags: [WhatsApp]
+      summary: Provision WABA webhook subscription
+      description: |
+        Tenant-level webhook provisioning only: `POST /{waba_id}/subscribed_apps`
+        then `GET /{waba_id}/subscribed_apps` confirming `META_APP_ID`.
+        Sets `webhook_verified_at` only after Graph confirmation.
+        Advances `WEBHOOK_PENDING` → `HEALTH_CHECK_PENDING`.
+        Idempotent when already at `HEALTH_CHECK_PENDING`/`READY` or
+        `webhook_verified_at` is set. App-level hub verify (GET challenge) remains
+        on the gateway and is not part of this endpoint.
+      responses:
+        "200":
+          description: Webhook provisioned (or already provisioned)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProvisionWebhookResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "502":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /v1/whatsapp/health-check:
+    post:
+      operationId: whatsappHealthCheck
+      tags: [WhatsApp]
+      summary: Run WhatsApp connection health_ok checks
+      description: |
+        Evaluates all six ADR-0020 `health_ok` criteria (local + Meta), returns a
+        stable `checks` object, then performs a **single** lifecycle transition to
+        `READY` or `ERROR` (`HEALTH_CHECK_FAILED`). Idempotent when already `READY`.
+      responses:
+        "200":
+          description: Health evaluated (READY or ERROR with checks)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthCheckResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /v1/whatsapp/retry:
+    post:
+      operationId: retryWhatsappProvisioning
+      tags: [WhatsApp]
+      summary: Retry WhatsApp provisioning from ERROR
+      description: |
+        Recovers from `ERROR` by transitioning to `recovery_target` only, then
+        dispatching the matching step (`PHONE_PENDING` restores status for PIN
+        re-entry; `WEBHOOK_PENDING` re-runs webhook provision; `HEALTH_CHECK_PENDING`
+        re-runs health). Response shape matches `GET /v1/whatsapp/connection`
+        (optional `checks` when health ran). Audited via structured log
+        (`retry_target`, `retry_reason=user`).
+      responses:
+        "200":
+          description: Recovery applied (same shape as connection)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WhatsappConnectionResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "502":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /v1/whatsapp/embedded-signup/complete:
+    post:
+      operationId: completeWhatsappEmbeddedSignup
+      tags: [WhatsApp]
+      summary: Complete WhatsApp Embedded Signup
+      description: |
+        Exchanges an Embedded Signup auth code for a business token, attaches the
+        phone to the authenticated tenant, subscribes the WABA for webhooks, and
+        runs a token health check. Advances lifecycle to `PHONE_PENDING` (not
+        `READY` — phone registration / webhook verify / health are P2).
+        Idempotent when the same `phone_number_id` is already post-attach for
+        this tenant.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmbeddedSignupCompleteRequest"
+            examples:
+              complete:
+                $ref: "#/components/examples/EmbeddedSignupComplete"
+      responses:
+        "200":
+          description: Phone attached (or already attached)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmbeddedSignupCompleteResponse"
+              examples:
+                attached:
+                  $ref: "#/components/examples/EmbeddedSignupAttached"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/Error"
+        "502":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: omni_…
+      description: |
+        Tenant API key issued by OmniMsg (`omni_…`). Validated at the gateway;
+        never send client-supplied tenant headers.
+
   parameters:
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      description: |
+        Optional client correlation id. Echoed on responses when provided;
+        otherwise the platform generates one. Always present as
+        `error.correlation_id` on error bodies (ADR-0015).
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -96,6 +421,11 @@ components:
   responses:
     Error:
       description: Uniform platform error (ADR-0015)
+      headers:
+        X-Correlation-Id:
+          description: Echo of request correlation id (generated if omitted)
+          schema:
+            type: string
       content:
         application/json:
           schema:
@@ -105,17 +435,42 @@ components:
               $ref: "#/components/examples/ErrorValidation"
 
   schemas:
+    HealthChecks:
+      type: object
+      additionalProperties: false
+      required: [database, redis]
+      properties:
+        database:
+          type: boolean
+          description: Postgres connectivity (`SELECT 1`)
+        redis:
+          type: boolean
+          description: Redis PING
+        worker:
+          type: boolean
+          nullable: true
+          description: Reserved; null until worker connectivity is wired
+        provider:
+          type: boolean
+          nullable: true
+          description: Reserved; null until provider readiness is wired
+
     HealthResponse:
       type: object
       additionalProperties: false
-      required: [status]
+      required: [status, version, checks]
       properties:
         status:
           type: string
-          enum: [ok]
+          enum: [ok, degraded, error]
+          description: |
+            `ok` when required checks pass; `error` when database or redis fails;
+            `degraded` reserved for partial optional failures.
         version:
           type: string
-          description: Optional build or API version string
+          description: API/build version string
+        checks:
+          $ref: "#/components/schemas/HealthChecks"
 
     CreateMessageRequest:
       type: object
@@ -182,6 +537,398 @@ components:
           type: string
           description: Request correlation id for support and tracing (ADR-0011)
 
+    MessageResponse:
+      type: object
+      additionalProperties: false
+      required: [id, status, channel, to, type, created_at, updated_at, correlation_id, direction]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          description: Current message status (queued, accepted, received, failed, …)
+        channel:
+          type: string
+          enum: [whatsapp, sms, email, rcs, push]
+        to:
+          type: string
+        type:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        correlation_id:
+          type: string
+        direction:
+          type: string
+          enum: [outbound, inbound]
+          description: Message direction (default outbound for legacy rows)
+        from_address:
+          type: string
+          nullable: true
+          description: Contact address for inbound (Meta messages[].from)
+        conversation_id:
+          type: string
+          nullable: true
+        provider_message_id:
+          type: string
+          nullable: true
+          description: Immutable Meta wamid when present
+
+    ConversationMessagesResponse:
+      type: object
+      additionalProperties: false
+      required: [conversation_id, messages, limit, offset]
+      properties:
+        conversation_id:
+          type: string
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/MessageResponse"
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    EmbeddedSignupCompleteRequest:
+      type: object
+      additionalProperties: false
+      required: [code, waba_id, phone_number_id]
+      properties:
+        code:
+          type: string
+          description: Auth code from Meta Embedded Signup session
+          minLength: 1
+          maxLength: 4096
+        waba_id:
+          type: string
+          description: WhatsApp Business Account id from ES session
+          minLength: 1
+          maxLength: 64
+        phone_number_id:
+          type: string
+          description: Meta phone_number_id from ES session
+          minLength: 1
+          maxLength: 64
+        meta_business_id:
+          type: string
+          description: Optional client Business Manager id from ES session
+          maxLength: 64
+
+    EmbeddedSignupCompleteResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - account_id
+        - tenant_id
+        - waba_id
+        - phone_number_id
+        - status
+        - already_attached
+        - correlation_id
+      properties:
+        account_id:
+          type: string
+        tenant_id:
+          type: string
+        waba_id:
+          type: string
+        phone_number_id:
+          type: string
+        status:
+          type: string
+          description: Lifecycle status after complete (typically PHONE_PENDING)
+          examples:
+            - PHONE_PENDING
+        already_attached:
+          type: boolean
+          description: True when the phone was already post-attach for this tenant
+        correlation_id:
+          type: string
+        meta_business_id:
+          type: string
+          nullable: true
+        status_reason:
+          type: string
+          nullable: true
+
+    EmbeddedSignupStartResponse:
+      type: object
+      additionalProperties: false
+      required: [account_id, tenant_id, status, correlation_id, already_started]
+      properties:
+        account_id:
+          type: string
+        tenant_id:
+          type: string
+        status:
+          type: string
+          examples:
+            - EMBEDDED_SIGNUP_STARTED
+        correlation_id:
+          type: string
+        already_started:
+          type: boolean
+
+    WhatsappConnectionResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - lifecycle_version
+        - credit_line_attached
+        - badge
+        - message
+      properties:
+        status:
+          type: string
+          description: Canonical lifecycle status (ADR-0020)
+          examples:
+            - NOT_CONNECTED
+            - PHONE_PENDING
+            - READY
+        status_reason:
+          type: string
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+        correlation_id:
+          type: string
+          nullable: true
+        last_error:
+          type: string
+          nullable: true
+        recovery_target:
+          type: string
+          nullable: true
+        lifecycle_version:
+          type: integer
+        waba_id:
+          type: string
+          nullable: true
+        phone_number_id:
+          type: string
+          nullable: true
+        credit_line_attached:
+          type: boolean
+        badge:
+          type: string
+        message:
+          type: string
+        account_id:
+          type: string
+          nullable: true
+        checks:
+          allOf:
+            - $ref: "#/components/schemas/HealthChecks"
+          nullable: true
+          description: |
+            Present after health evaluation (e.g. retry → HEALTH_CHECK_PENDING).
+            Null on ordinary GET connection.
+      type: object
+      additionalProperties: false
+      required: [pin]
+      properties:
+        pin:
+          type: string
+          description: Six-digit Cloud API registration PIN
+          pattern: "^\\d{6}$"
+          minLength: 6
+          maxLength: 6
+
+    RegisterPhoneResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - correlation_id
+        - already_registered
+        - lifecycle_version
+        - credit_line_attached
+        - badge
+        - message
+      properties:
+        status:
+          type: string
+          examples:
+            - WEBHOOK_PENDING
+        status_reason:
+          type: string
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+        correlation_id:
+          type: string
+        already_registered:
+          type: boolean
+          description: True when registration was already complete (idempotent)
+        last_error:
+          type: string
+          nullable: true
+        recovery_target:
+          type: string
+          nullable: true
+        lifecycle_version:
+          type: integer
+        waba_id:
+          type: string
+          nullable: true
+        phone_number_id:
+          type: string
+          nullable: true
+        credit_line_attached:
+          type: boolean
+        badge:
+          type: string
+        message:
+          type: string
+        account_id:
+          type: string
+          nullable: true
+
+    ProvisionWebhookResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - correlation_id
+        - already_provisioned
+        - lifecycle_version
+        - credit_line_attached
+        - badge
+        - message
+      properties:
+        status:
+          type: string
+          examples:
+            - HEALTH_CHECK_PENDING
+        status_reason:
+          type: string
+          nullable: true
+          examples:
+            - WEBHOOK_SUBSCRIBED
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+        correlation_id:
+          type: string
+        already_provisioned:
+          type: boolean
+        last_error:
+          type: string
+          nullable: true
+        recovery_target:
+          type: string
+          nullable: true
+        lifecycle_version:
+          type: integer
+        waba_id:
+          type: string
+          nullable: true
+        phone_number_id:
+          type: string
+          nullable: true
+        credit_line_attached:
+          type: boolean
+        badge:
+          type: string
+        message:
+          type: string
+        account_id:
+          type: string
+          nullable: true
+
+    HealthChecks:
+      type: object
+      additionalProperties: false
+      required:
+        - business_token
+        - waba
+        - phone_number
+        - phone_registered
+        - webhook_verified
+        - graph_health
+      properties:
+        business_token:
+          type: boolean
+        waba:
+          type: boolean
+        phone_number:
+          type: boolean
+        phone_registered:
+          type: boolean
+        webhook_verified:
+          type: boolean
+        graph_health:
+          type: boolean
+
+    HealthCheckResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - correlation_id
+        - already_healthy
+        - checks
+        - lifecycle_version
+        - credit_line_attached
+        - badge
+        - message
+      properties:
+        status:
+          type: string
+          examples:
+            - READY
+            - ERROR
+        status_reason:
+          type: string
+          nullable: true
+          examples:
+            - HEALTH_OK
+            - HEALTH_CHECK_FAILED
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+        correlation_id:
+          type: string
+        already_healthy:
+          type: boolean
+        checks:
+          $ref: "#/components/schemas/HealthChecks"
+        last_error:
+          type: string
+          nullable: true
+        recovery_target:
+          type: string
+          nullable: true
+        lifecycle_version:
+          type: integer
+        waba_id:
+          type: string
+          nullable: true
+        phone_number_id:
+          type: string
+          nullable: true
+        credit_line_attached:
+          type: boolean
+        badge:
+          type: string
+        message:
+          type: string
+        account_id:
+          type: string
+          nullable: true
+
     ErrorResponse:
       type: object
       additionalProperties: false
@@ -235,10 +982,25 @@ components:
 
   examples:
     HealthOk:
-      summary: Healthy service
+      summary: Required dependencies healthy
       value:
         status: ok
-        version: "1.0.0"
+        version: "0.1.0"
+        checks:
+          database: true
+          redis: true
+          worker: null
+          provider: null
+    HealthError:
+      summary: Required dependency failed
+      value:
+        status: error
+        version: "0.1.0"
+        checks:
+          database: false
+          redis: true
+          worker: null
+          provider: null
     CreateMessageText:
       summary: Queue a WhatsApp text message
       value:
@@ -257,6 +1019,36 @@ components:
         channel: whatsapp
         created_at: "2026-07-20T12:00:00Z"
         correlation_id: req_01j6zq8k2n3p4r5s6t7u8v9w0y
+    GetMessageQueued:
+      summary: Message status
+      value:
+        id: msg_01j6zq8k2n3p4r5s6t7u8v9w0x
+        status: accepted
+        channel: whatsapp
+        to: "+385911234567"
+        type: text
+        created_at: "2026-07-20T12:00:00Z"
+        updated_at: "2026-07-20T12:00:01Z"
+        correlation_id: req_01j6zq8k2n3p4r5s6t7u8v9w0y
+    EmbeddedSignupComplete:
+      summary: Complete Embedded Signup
+      value:
+        code: AQBx...
+        waba_id: "2051619625480247"
+        phone_number_id: "1277870658736892"
+        meta_business_id: "1329905112443890"
+    EmbeddedSignupAttached:
+      summary: Phone attached
+      value:
+        account_id: twa_01j6zq8k2n3p4r5s6t7u8v9w0a
+        tenant_id: ten_stay_hr
+        waba_id: "2051619625480247"
+        phone_number_id: "1277870658736892"
+        status: PHONE_PENDING
+        already_attached: false
+        correlation_id: req_01j6zq8k2n3p4r5s6t7u8v9w0b
+        meta_business_id: "1329905112443890"
+        status_reason: PHONE_PENDING
     ErrorValidation:
       summary: Validation failure
       value:

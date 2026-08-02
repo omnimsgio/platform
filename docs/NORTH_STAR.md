@@ -13,13 +13,13 @@ OmniMsg is an **API-first omnichannel messaging platform**.
 
 Customers integrate once with a stable HTTP API. The platform routes messages across channels (WhatsApp, SMS, email, RCS, push) and providers (Meta, Twilio, Infobip, and others) without requiring client-side changes when vendors or routes change.
 
-### Tech Provider go-to-market
+### Solution Partner go-to-market
 
-v1 focuses on becoming a [Meta WhatsApp Tech Provider](https://developers.facebook.com/documentation/business-messaging/whatsapp/solution-providers/get-started-for-tech-providers) — not a Solution Partner reseller. That path enables Embedded Signup, webhook ingress, and multi-tenant WABA messaging on behalf of client businesses.
+v1 focuses on becoming a [Meta WhatsApp Solution Partner](https://developers.facebook.com/documentation/business-messaging/whatsapp/solution-providers/get-started-for-solution-partners): OmniMsg holds a Meta **credit line**, clients do not enter a Meta payment method, and **FinestAR invoices** WhatsApp usage plus platform fees. That path enables Embedded Signup, webhook ingress, multi-tenant WABA messaging, and credit-line sharing to onboarded client businesses.
 
-Embedded Signup UI, Meta App Review / business verification, and production webhook verification are **future deliverables** of the **api** and **channels** phases. They are not implemented in foundation.
+Embedded Signup UI, Meta App Review (Advanced access), credit-line ops, and production webhook verification are **future deliverables** of the **api** and **channels** phases (billing engine later). They are not implemented in foundation. Ops checklist: [Meta WhatsApp Solution Partner runbook](providers/meta-whatsapp-solution-partner.md).
 
-Primary channel path: WhatsApp via Meta Cloud API (ADR-0017). Stack: ADR-0016.
+Primary channel path: WhatsApp via Meta Cloud API (ADR-0018; supersedes ADR-0017). Stack: ADR-0016.
 
 ## Architecture
 
@@ -82,7 +82,8 @@ flowchart TB
 | **foundation** | Repository skeleton, ADRs, contracts layout, stack selection, local dev tooling |
 | **api** | Gateway auth, `/v1/` API skeleton, execution engine core, uniform errors; Meta Embedded Signup / App Review prep |
 | **channels** | WhatsApp provider adapter, Meta webhook verification → execution engine, delivery events, additional channels |
-| **portal** | Customer portal consuming the public API |
+| **portal** | Customer portal consuming the public API; Embedded Signup UX |
+| **billing** | Usage metering → client invoices; reconcile with Meta credit-line cost (v1+) |
 
 ## v1 Scope
 
@@ -91,11 +92,26 @@ v1 delivers a working platform skeleton and first vertical slice:
 - API skeleton with versioned public interface (`/v1/`)
 - Gateway authentication and rate limiting at the edge
 - Execution engine core with provider adapter interface
-- WhatsApp provider adapter via Meta Cloud API (Tech Provider path; ADR-0017)
-- Inbound and outbound webhooks (Meta ingress via gateway)
-- Multi-tenant API keys and per-tenant provider / WABA configuration
+- WhatsApp provider adapter via Meta Cloud API (Solution Partner path; ADR-0018)
+- Inbound and outbound webhooks (Meta ingress via gateway; one callback URL)
+- Multi-tenant API keys and per-tenant provider / WABA configuration (business token, credit-line flag)
 - Contract-first OpenAPI and event layout (schemas populated incrementally)
 - Observability hooks (structured logging, trace context)
+- When inbound conversation persistence lands: store **ConversationReferral** (full referral + `ctwa_clid` + `raw_payload`) — see [ADR-0019](adr/ADR-0019-marketing-events-attribution.md)
+
+### Solution Partner technical milestones
+
+Architecture stays `gateway → api → worker → provider`; token and billing semantics are SP-specific. Implementation is deferred to later phases — this table is the backlog map:
+
+| Milestone | Component | Work |
+|-----------|-----------|------|
+| Webhook ingress | `apps/gateway` | Meta verify challenge + signature; single callback URL per Meta app |
+| Cloud API adapter | `packages/providers/whatsapp` | Send/receive, register phone (PIN / 2FA) |
+| Tenant WhatsApp config | DB / settings | Per-tenant: WABA id, `phone_number_id`, **business access token**, credit-line attached flag |
+| Embedded Signup | Portal / API | ES (or Hosted ES); auth code → business token exchange; optional partner-initiated WABA |
+| Client billing | Billing (v1+) | Usage tracking → invoices to clients; reconcile against Meta credit-line cost |
+
+**Risk:** Solution Partner / MBP approval and credit line are an external critical path. Cloud API, ES, and webhooks can be built on a development app in parallel; production onboarding with credit-line sharing waits on SP status. See runbook.
 
 ## Not v1
 
@@ -107,34 +123,154 @@ The following are explicitly out of v1 scope:
 - Kubernetes production deployment
 - Advanced failover across multiple vendors per channel
 - Full OAuth portal authentication
-- Meta Solution Partner reseller model
+- Production billing engine (usage → invoices) — tracked as a post-channels milestone, not foundation
+- **Marketing Domain** implementation: `BusinessEvent`, `BusinessEventDelivery`, destination adapters, Conversion API / Meta CAPI ([ADR-0019](adr/ADR-0019-marketing-events-attribution.md))
+- Advanced access for `whatsapp_business_manage_events` (deferred to v1.x with CAPI)
+- Ads Manager features (campaign/audience management, reporting dashboards, BI warehouses, AI campaign optimisation) — permanently out of ADR-0019 scope
+
+## Marketing & Attribution backlog
+
+v1 remains **CPaaS**. From v1.x OmniMsg adds a **Marketing Domain** that emits canonical business outcomes to destinations (not Ads Manager). Design: [ADR-0019](adr/ADR-0019-marketing-events-attribution.md) (**Architecture Locked**).
+
+### Conversation domain — feature frozen
+
+The Conversation layer (`conversations`, `conversation_referrals`, CTWA referral capture) is **feature frozen**. New marketing / attribution work lands in the Marketing Domain above it. Do not extend Conversation models or referral persistence for marketing features unless a **new ADR** (or explicit amendment) authorizes the change. Bug fixes remain allowed.
+
+**ConversationReferral milestone:** Done (closed).
+
+### Backlog: Conversation Identity Evolution
+
+| Field | Value |
+|-------|--------|
+| Status | **Backlog** (not scheduled) |
+| Type | Future domain evolution — docs only |
+| Implementation | **Do not implement** in the current Conversation freeze; requires a new ADR when prioritized |
+
+Today a conversation is identified by `tenant_id + channel + contact_external_id`. That is enough for the WhatsApp-first v1 slice.
+
+Later, the same person may appear on WhatsApp, Messenger, Instagram, email, SMS, etc. Do **not** stretch Conversation into a cross-channel customer identity. Evolve toward:
+
+```text
+Customer
+    │
+    ├── WhatsApp Conversation
+    ├── Messenger Conversation
+    ├── Instagram Conversation
+    └── Email Conversation
+```
+
+Purpose of this ticket: record the intended direction so Conversation is not reused as the person identity under pressure from omnichannel work.
+
+### Marketing Domain Phase 1
+
+| Field | Value |
+|-------|--------|
+| Status | **Waiting for prioritization** |
+| Type | Documentation / backlog epic only |
+| Implementation | **Do not open** eng tasks until this epic is prioritized |
+
+Backlog scope (from ADR-0019 Success Criteria):
+
+- `BusinessEvent` (canonical taxonomy, versioning, idempotency, correlation)
+- `BusinessEventDelivery` (journal: retry, DeadLetter, error classification)
+- Meta CAPI destination adapter (Destination Adapter Contract)
+- Advanced access for `whatsapp_business_manage_events`
+- Consent hooks, tenant dataset ownership, feature flags as designed in ADR-0019
+
+### Phased roadmap
+
+| Phase | Scope |
+|-------|--------|
+| **v1** | Messaging, WABA/SP onboarding; **ConversationReferral** (Done) |
+| **v1.x** | Marketing Domain Phase 1 (above) when prioritized |
+| **v2** | Google Ads, TikTok, LinkedIn, HubSpot, Salesforce, GA4, BI export |
+
+| Module | v1 | v1.x | v2 |
+|--------|----|------|-----|
+| ConversationReferral | yes | yes | yes |
+| BusinessEvent | no | yes | yes |
+| BusinessEventDelivery | no | yes | yes |
+| Event taxonomy / versioning / correlation / idempotency | design-only | yes | yes |
+| ConsentState | design-only | yes | yes |
+| Tenant + destination mapping | design-only | yes | yes |
+| Meta CAPI + `whatsapp_business_manage_events` | no | yes | yes |
+| Google Ads / TikTok / LinkedIn | no | no | yes |
+| HubSpot / Salesforce / GA4 | no | no | yes |
+| BI export (Snowflake / BigQuery) | no | no | yes |
+
+Out of scope forever under ADR-0019: campaign management, audience creation, ad account management, reporting dashboards, BI implementation, AI campaign optimisation.
 
 ## Implementation Status
 
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Repository skeleton | Done | Apps, packages, infrastructure, docs layout |
-| ADRs (0001–0017) | Done | Includes stack (0016) and Meta Tech Provider path (0017) |
-| Product positioning | Done | omnimsg.io, FinestAR, Tech Provider GTM |
+| ADRs (0001–0022) | Done | Stack (0016); SP (0018); Marketing (0019); WA lifecycle (0020); Public API (0021); Ops Admin (0022) |
+| Product positioning | Done | omnimsg.io, FinestAR, Solution Partner GTM |
 | NORTH_STAR | Done | This document |
-| OpenAPI contracts | Not started | `packages/contracts/openapi/` |
-| Event contracts | Not started | `packages/contracts/events/` |
-| apps/gateway | Not started | Edge auth, routing, webhook ingress |
-| apps/api | Not started | Business logic, `/v1/` endpoints |
-| Execution Engine | Not started | Orchestration layer in API/worker |
-| apps/worker | Not started | Async processing |
-| packages/providers/whatsapp | Not started | First channel adapter (Meta Cloud API) |
+| OpenAPI contracts | Done | Contract SSOT + edge `/openapi.json` / `/docs` / `/redoc`; `x-contract-version` `1.0.0`; readiness `/v1/health` |
+| Public API surface (ADR-0021) | **Done (production)** | 2026-08-02 on `api.omnimsg.io`; baseline tag `cpaas-openapi-surface-v1`; [evidence](runbooks/production-openapi-surface-evidence-2026-08-02.md) |
+| Ops admin (`/admin`, ADR-0022) | **Done / frozen (SQLAdmin v1)** | Tag `cpaas-sqladmin-v1`; [closeout](runbooks/production-admin-sqladmin-v1-closeout-2026-08-03.md); v2 ideas in [backlog](backlog/sqladmin-v2.md) |
+| Event contracts | Done | `message.queued.v1`, `message.delivery_updated.v1`, `webhook.inbound.received.v1` |
+| apps/gateway | Done | Bearer auth, rate limit, Meta webhooks; public discovery `/`, `/version`, `/health`, contract docs; fail-fast OpenAPI load |
+| apps/api | Done | Persist + idempotency, internal auth resolve, ADR-0015 validation; `/v1/health` readiness (DB+Redis) |
+| Schema / migrations | Done | Alembic: `tenants`, `api_keys`, `messages`, `tenant_whatsapp_accounts`; local seed script |
+| Execution Engine | In progress | Worker outbound Meta WhatsApp + inbound status; provider ABC/stub for other channels |
+| apps/worker | Done | Outbound WhatsApp via Cloud API; inbound `message_status` → status + `message.delivery_updated.v1` |
+| packages/providers/whatsapp | Done | Meta Cloud API adapter (`whatsapp.meta`); Graph send + error mapping |
 | packages/providers/sms, email, rcs, push | Not started | Future channels |
-| packages/sdk-* | Not started | Post-OpenAPI stabilization |
-| apps/portal | Not started | Post-API maturity |
-| Docker Compose (local dev) | Not started | `docker/development/` |
+| packages/sdk-* | Not started | Unblocked by OpenAPI surface stabilization (`cpaas-openapi-surface-v1`) |
+| apps/portal | Not started | Placeholder; public shell lives in `apps/web` until ES / auth |
+| apps/web | Done | Next.js promo (`omnimsg.io` / `www`) + portal shell (`app.omnimsg.io`); no auth |
+| Docker Compose (local dev) | Done | App-only Compose on shared Traefik / Postgres / Redis |
 | infrastructure/observability | Not started | Metrics, tracing, dashboards |
-| CI workflows | Not started | `.github/workflows/` |
-| Meta Embedded Signup / App Review | Not started | api / channels phases |
+| CI workflows | Done | Ruff, migrations, pytest; OpenAPI lint (`openapi-spec-validator`), path/method parity, runtime docs smoke |
+| Meta Solution Partner / App Review / credit line | In progress | SP/MBP kickoff 2026-07-20; live tracker `/opt/stacks/ops/omnimsgio-meta-sp-kickoff.md`; App Review + credit line still pending; see [runbook](providers/meta-whatsapp-solution-partner.md) |
+| Meta Embedded Signup | Done (P1) | start/complete + lifecycle → `PHONE_PENDING`; portal reads connection status |
+| Tenant WhatsApp Connection Lifecycle | **Feature Complete (v1 frozen)** | ADR-0020 SSOT; Compatibility Promise; [v1 release checklist](adr/ADR-0020-lifecycle-v1-release-checklist.md); no v1 status changes in P3+ |
+| Client billing vs Meta credit line | Not started | billing phase (v1+) |
+| ConversationReferral persistence | Done | Milestone closed; Conversation domain **feature frozen** (see Marketing backlog) |
+| Conversation Identity Evolution | Backlog | Future Customer-above-conversations model; not scheduled; new ADR when prioritized |
+| Marketing Domain Phase 1 | Waiting for prioritization | Backlog only: BusinessEvent, journal, Meta CAPI, `manage_events` — no eng tasks until prioritized |
+
+### CPaaS Foundation (complete)
+
+Platform baselines (do not retag/move): `cpaas-lifecycle-v1`, `cpaas-inbound-persistence-v1`, `cpaas-openapi-surface-v1`, `cpaas-sqladmin-v1`.
+
+| Priority | Work | Notes |
+|----------|------|-------|
+| **P0** | Meta ops: App Review (`management` + `messaging`), System User, long-lived token, Credit Line | External; parallel to engineering |
+| **P1** | Embedded Signup + Tenant Connection Lifecycle | **Done** — ends at `PHONE_PENDING`; ADR-0020 |
+| **P2** | Phone registration, webhook verify, health → `READY`, retry, E2E | **Done (Feature Complete / frozen)** — [v1 checklist](adr/ADR-0020-lifecycle-v1-release-checklist.md) |
+| **P3** | Inbound message persistence / conversation thread | **Done** — [P3](P3-inbound-persistence.md); event `message.inbound.received.v1` |
+
+**Platform-first:** capability work builds on ADR-0020, OpenAPI (`cpaas-openapi-surface-v1`), SQLAdmin (`cpaas-sqladmin-v1`), and event contracts — it does not change them. See [CONTRIBUTING](../CONTRIBUTING.md).
+
+**Partner delivery (current focus):** see [partner-delivery-roadmap.md](backlog/partner-delivery-roadmap.md) — ES/onboarding → messaging API stabilisation → webhooks → **API Freeze gate** → SDKs → partner docs → first external tenant. SQLAdmin stays frozen.
+
+### Capability roadmap (independent milestones)
+
+Each item is a separate ADR/milestone. Consume `Conversation`, `Message`, `message.inbound.received.v1`, and the `READY` / messaging-ready gate — do not reopen Lifecycle v1.
+
+| Priority | Capability | Notes |
+|----------|------------|-------|
+| **P4** | Conversation orchestration / routing | New ADR when prioritized |
+| **P5** | Customer Identity (above Conversation) | New ADR; Identity Evolution backlog |
+| **P6** | Agent inbox and assignment | New ADR |
+| **P7** | Automation / bot engine | New ADR |
+| **P8** | Marketing Domain | ADR-0019; waiting for prioritization |
+| **P9** | Analytics and reporting | New ADR |
+| Frozen (until prioritized) | CAPI, Ads, `manage_events`, ConversationReferral feature freeze | No eng work that extends frozen Conversation marketing surface |
 
 ## Related Documents
 
 - [README](../README.md) — project overview
 - [docs/adr/](adr/) — architecture decision records (index + template)
+- [ADR-0018](adr/ADR-0018-meta-whatsapp-solution-partner.md) — Meta WhatsApp Solution Partner path
+- [ADR-0019](adr/ADR-0019-marketing-events-attribution.md) — Marketing Domain and Attribution Events
+- [ADR-0020](adr/ADR-0020-tenant-whatsapp-connection-lifecycle.md) — Tenant WhatsApp Connection Lifecycle (v1 Feature Complete / frozen)
+- [ADR-0020 v1 release checklist](adr/ADR-0020-lifecycle-v1-release-checklist.md) — Provisioning Lifecycle v1 freeze closeout
+- [P3 inbound persistence](P3-inbound-persistence.md) — inbound Message + thread API
+- [Meta WhatsApp Solution Partner runbook](providers/meta-whatsapp-solution-partner.md) — ops checklist (assets, App Review, tokens, credit line)
 - [docs/rfcs/](rfcs/) — proposed changes not yet accepted
-- [CONTRIBUTING.md](../CONTRIBUTING.md) — contribution guidelines
+- [CONTRIBUTING.md](../CONTRIBUTING.md) — contribution guidelines (Platform-first policy)

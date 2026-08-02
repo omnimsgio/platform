@@ -1,0 +1,13 @@
+{
+  "tested_at": "2026-08-02T18:38:00+02:00",
+  "field": "business_capability_update",
+  "version": "v26.0",
+  "dashboard_result": "Successfully tested",
+  "sample": {
+    "field": "business_capability_update",
+    "value": {
+      "max_daily_conversation_per_phone": 250,
+      "max_phone_numbers_per_business": 2
+    }
+  }
+}

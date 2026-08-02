@@ -1,0 +1,13 @@
+{
+  "tested_at": "2026-08-02T18:10:28+02:00",
+  "field": "account_update",
+  "version": "v26.0",
+  "dashboard_result": "Successfully tested",
+  "sample": {
+    "field": "account_update",
+    "value": {
+      "phone_number": "16505551111",
+      "event": "VERIFIED_ACCOUNT"
+    }
+  }
+}

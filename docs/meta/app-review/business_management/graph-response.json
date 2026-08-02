@@ -1,0 +1,63 @@
+{
+  "recorded_at": "2026-08-02",
+  "graph_api_version": "v21.0",
+  "app_id": "3492919917530282",
+  "business_id": "1329905112443890",
+  "token_note": "App Review test calls used a USER token with business_management (Ante Vrcan). Production META_BUSINESS_ACCESS_TOKEN must remain omnimsg_api SYSTEM_USER \u2014 regenerate with BM scope separately. Raw token intentionally omitted.",
+  "calls": [
+    {
+      "name": "A",
+      "method": "GET",
+      "path": "/me/businesses?fields=id,name",
+      "http_status": 200,
+      "response": {
+        "data": [
+          {
+            "id": "1893709791312215",
+            "name": "Fine Star"
+          },
+          {
+            "id": "1329905112443890",
+            "name": "Finestar Hospitality"
+          },
+          {
+            "id": "722318637221983",
+            "name": "stay.hr"
+          }
+        ]
+      }
+    },
+    {
+      "name": "B",
+      "method": "GET",
+      "path": "/1329905112443890?fields=id,name",
+      "http_status": 200,
+      "response": {
+        "id": "1329905112443890",
+        "name": "Finestar Hospitality"
+      }
+    },
+    {
+      "name": "C_optional",
+      "method": "GET",
+      "path": "/1329905112443890/owned_whatsapp_business_accounts?fields=id,name",
+      "http_status": 200,
+      "response": {
+        "data": [
+          {
+            "id": "908844918358763",
+            "name": "stay_hr"
+          },
+          {
+            "id": "2051619625480247",
+            "name": "Test WhatsApp Business Account"
+          },
+          {
+            "id": "1727044268475416",
+            "name": "Finestar Hospitality"
+          }
+        ]
+      }
+    }
+  ]
+}

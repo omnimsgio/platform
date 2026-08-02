@@ -1,0 +1,14 @@
+{
+  "tested_at": "2026-08-02T18:43:32+02:00",
+  "field": "partner_solutions",
+  "version": "v26.0",
+  "dashboard_result": "Successfully tested",
+  "sample": {
+    "field": "partner_solutions",
+    "value": {
+      "event": "SOLUTION_CREATED",
+      "solution_id": "1234567890",
+      "solution_status": "INITIATED"
+    }
+  }
+}

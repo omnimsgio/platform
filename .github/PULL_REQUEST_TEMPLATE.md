@@ -24,9 +24,18 @@ Fixes #
 ## ADR / RFC Checklist
 
 - [ ] No architectural impact
-- [ ] Existing ADR covers this change
-- [ ] New ADR added or existing ADR updated (`docs/adr/`)
+- [ ] Existing ADR covers this change (implementation of an accepted decision only — state which ADR)
+- [ ] New ADR added (`docs/adr/`)
+- [ ] Existing ADR amended (`docs/adr/`)
 - [ ] RFC proposed for discussion (`docs/rfcs/`) — not yet accepted
+
+### Architecture Locked
+
+If this PR touches an area marked **Architecture Locked** in an ADR, one of the following is **required**:
+
+- [ ] New ADR linked above
+- [ ] ADR amendment linked above
+- [ ] Explicit confirmation: *this PR only implements an already locked decision; no architecture change* (name the ADR)
 
 ## Contract Checklist
 

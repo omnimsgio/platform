@@ -1,0 +1,15 @@
+{
+  "tested_at": "2026-08-02T18:42:17+02:00",
+  "field": "phone_number_name_update",
+  "version": "v26.0",
+  "dashboard_result": "Successfully tested",
+  "sample": {
+    "field": "phone_number_name_update",
+    "value": {
+      "display_phone_number": "16505551111",
+      "decision": "APPROVED",
+      "requested_verified_name": "WhatsApp",
+      "rejection_reason": null
+    }
+  }
+}
