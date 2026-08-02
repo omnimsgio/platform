@@ -7,18 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- Ops admin C2.4: SQLAdmin **Messages** strictly read-only (list/detail, filters, recipient/payload masking); no mutations
-- Ops admin C2.3: SQLAdmin **WhatsApp Accounts** read-mostly view; retry via `RetryService` + `transition()`; mark disconnected via `transition()` only; token masked; AST/SSOT CI guards
-- Ops follow-up: public `Location` / `public_url` behind Traefik (`X-Forwarded-*` + gateway rewrite of internal `omnimsgio-api` redirects)
-- Ops admin C2.2: SQLAdmin **API Key** view — create (plaintext once via sqladmin Secret), deactivate, two-step rotate with `ADMIN_API_KEY_GRACE_HOURS`, finish revoke; migration `009_api_key_rotation`; auth rejects old key after grace
-- Ops admin C2.1: SQLAdmin **Tenant** view (create/edit, activate/deactivate with confirmation, audit); `ADMIN_READ_ONLY` also blocks SQLAdmin `/action/` GET mutators
-- Ops admin C1 (ADR-0022): `/admin` Basic auth at gateway, SQLAdmin mount, `admin_audit_events` (indexes + downgrade), `ADMIN_READ_ONLY` server-side write deny, `/admin/home` readiness chips, Traefik IP allowlist, [production-admin](docs/runbooks/production-admin.md) runbook
-
 ### Changed
 
-- SQLAdmin **v1 Complete / frozen** (`cpaas-sqladmin-v1`); further admin ideas tracked in [SQLAdmin v2 backlog](docs/backlog/sqladmin-v2.md)
 - GTM pivot to Meta WhatsApp **Solution Partner** (ADR-0018): credit line toward Meta, OmniMsg invoices clients; ADR-0017 Tech Provider path superseded
 - North Star, README, and ADR index updated for Solution Partner GTM; Solution Partner ops runbook and SP technical milestones documented
 - North Star: Meta SP / App Review / credit line marked **In progress** (ops kickoff tracked outside the repo)
@@ -52,6 +42,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - Empty duplicate `docs/decisions/` (ADRs live in `docs/adr/`)
+
+## [cpaas-sqladmin-v1] — 2026-08-03
+
+Baseline tag for ops SQLAdmin v1 (ADR-0022 C1–C2.4), production verified and frozen. Merged to `main` via [PR #3](https://github.com/omnimsgio/platform/pull/3). Closeout: [docs/runbooks/production-admin-sqladmin-v1-closeout-2026-08-03.md](docs/runbooks/production-admin-sqladmin-v1-closeout-2026-08-03.md). Further admin work: [SQLAdmin v2 backlog](docs/backlog/sqladmin-v2.md). Next delivery stream: [Partner Delivery #1](docs/backlog/partner-delivery-roadmap.md).
+
+### Added
+
+- Ops admin C2.4: SQLAdmin **Messages** strictly read-only (list/detail, filters, recipient/payload masking); no mutations
+- Ops admin C2.3: SQLAdmin **WhatsApp Accounts** read-mostly view; retry via `RetryService` + `transition()`; mark disconnected via `transition()` only; token masked; AST/SSOT CI guards
+- Ops follow-up: public `Location` / `public_url` behind Traefik (`X-Forwarded-*` + gateway rewrite of internal `omnimsgio-api` redirects)
+- Ops admin C2.2: SQLAdmin **API Key** view — create (plaintext once via sqladmin Secret), deactivate, two-step rotate with `ADMIN_API_KEY_GRACE_HOURS`, finish revoke; migration `009_api_key_rotation`; auth rejects old key after grace
+- Ops admin C2.1: SQLAdmin **Tenant** view (create/edit, activate/deactivate with confirmation, audit); `ADMIN_READ_ONLY` also blocks SQLAdmin `/action/` GET mutators
+- Ops admin C1 (ADR-0022): `/admin` Basic auth at gateway, SQLAdmin mount, `admin_audit_events` (indexes + downgrade), `ADMIN_READ_ONLY` server-side write deny, `/admin/home` readiness chips, Traefik IP allowlist, [production-admin](docs/runbooks/production-admin.md) runbook
+
+### Changed
+
+- SQLAdmin **v1 Complete / frozen** (`cpaas-sqladmin-v1`); further admin ideas tracked in [SQLAdmin v2 backlog](docs/backlog/sqladmin-v2.md)
 
 ## [cpaas-openapi-surface-v1] — 2026-08-02
 
