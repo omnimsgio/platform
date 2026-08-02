@@ -68,6 +68,8 @@ C2.3 WhatsApp evidence: [production-admin-c2.3-whatsapp-evidence-2026-08-03.md](
 C2.4 Message evidence: [production-admin-c2.4-message-evidence-2026-08-03.md](production-admin-c2.4-message-evidence-2026-08-03.md).  
 SQLAdmin v1 closeout: [production-admin-sqladmin-v1-closeout-2026-08-03.md](production-admin-sqladmin-v1-closeout-2026-08-03.md).
 
+Next engineering focus (not admin): [partner-delivery-roadmap.md](../backlog/partner-delivery-roadmap.md).
+
 When `ADMIN_READ_ONLY=true`, the API also denies SQLAdmin **action** routes (`/admin/.../action/...`), which are registered as GET but mutate state.
 
 ## Security notes

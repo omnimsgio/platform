@@ -246,7 +246,7 @@ Platform baselines (do not retag/move): `cpaas-lifecycle-v1`, `cpaas-inbound-per
 
 **Platform-first:** capability work builds on ADR-0020, OpenAPI (`cpaas-openapi-surface-v1`), SQLAdmin (`cpaas-sqladmin-v1`), and event contracts — it does not change them. See [CONTRIBUTING](../CONTRIBUTING.md).
 
-**After SQLAdmin v1 freeze, preferred focus:** Embedded Signup / onboarding polish → messaging API stabilisation → webhook lifecycle → SDK generation → partner docs → first external tenant.
+**Partner delivery (current focus):** see [partner-delivery-roadmap.md](backlog/partner-delivery-roadmap.md) — ES/onboarding → messaging API stabilisation → webhooks → **API Freeze gate** → SDKs → partner docs → first external tenant. SQLAdmin stays frozen.
 
 ### Capability roadmap (independent milestones)
 
