@@ -34,9 +34,14 @@ curl -sS -o /dev/null -w '%{http_code}\n' -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
 
 `GET /admin/home` shows DB / Redis / app version / environment / contract version / read-only flag.
 
-SQLAdmin UI: `/admin/` — Audit Events (C1); **Tenant** (C2.1); **API Keys** (C2.2); **WhatsApp Accounts** (C2.3); Message (C2.4, deployable alone).
+SQLAdmin UI: `/admin/` — Audit Events (C1); **Tenant** (C2.1); **API Keys** (C2.2); **WhatsApp Accounts** (C2.3); **Messages** (C2.4). SQLAdmin v1 complete.
 
-### WhatsApp accounts (C2.3)
+### Messages (C2.4)
+
+- Strictly read-only list/detail (no create/edit/delete/actions).
+- List: created_at, tenant, channel/provider, direction, status, recipient (masked), correlation_id.
+- Detail: timestamps, ids, redacted payload (tokens/phones/emails), derived error / provider response when present in payload.
+- Filters: tenant, status, channel, direction, created_at (operators).
 
 - Read-mostly list/details; `business_access_token` masked (`••••` + last 4).
 - No create/edit/delete of credentials or free-form status.

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Ops admin C2.4: SQLAdmin **Messages** strictly read-only (list/detail, filters, recipient/payload masking); no mutations
 - Ops admin C2.3: SQLAdmin **WhatsApp Accounts** read-mostly view; retry via `RetryService` + `transition()`; mark disconnected via `transition()` only; token masked; AST/SSOT CI guards
 - Ops follow-up: public `Location` / `public_url` behind Traefik (`X-Forwarded-*` + gateway rewrite of internal `omnimsgio-api` redirects)
 - Ops admin C2.2: SQLAdmin **API Key** view — create (plaintext once via sqladmin Secret), deactivate, two-step rotate with `ADMIN_API_KEY_GRACE_HOURS`, finish revoke; migration `009_api_key_rotation`; auth rejects old key after grace
