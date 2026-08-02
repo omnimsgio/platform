@@ -231,15 +231,33 @@ Out of scope forever under ADR-0019: campaign management, audience creation, ad 
 | Conversation Identity Evolution | Backlog | Future Customer-above-conversations model; not scheduled; new ADR when prioritized |
 | Marketing Domain Phase 1 | Waiting for prioritization | Backlog only: BusinessEvent, journal, Meta CAPI, `manage_events` — no eng tasks until prioritized |
 
-### CPaaS v1 execution order (locked)
+### CPaaS Foundation (complete)
+
+Platform baselines (do not retag/move): `cpaas-lifecycle-v1`, `cpaas-inbound-persistence-v1`.
 
 | Priority | Work | Notes |
 |----------|------|-------|
-| **P0** | Meta ops: App Review (`management` + `messaging`), System User, long-lived token, Credit Line | External; do not block ES/lifecycle engineering on credit line |
+| **P0** | Meta ops: App Review (`management` + `messaging`), System User, long-lived token, Credit Line | External; parallel to engineering |
 | **P1** | Embedded Signup + Tenant Connection Lifecycle | **Done** — ends at `PHONE_PENDING`; ADR-0020 |
-| **P2** | Phone registration, webhook verify, health → `READY`, retry, E2E | **Done (Feature Complete / frozen)** — P2.1–P2.5; [v1 checklist](adr/ADR-0020-lifecycle-v1-release-checklist.md) |
-| **P3** | Inbound message persistence / conversation thread | **Done** — durable inbound Message + thread API; lifecycle read-only — [P3](P3-inbound-persistence.md) |
-| Frozen | Marketing Domain, CAPI, Ads, `manage_events`, Conversation Identity, ConversationReferral feature freeze | No eng work in CPaaS v1 |
+| **P2** | Phone registration, webhook verify, health → `READY`, retry, E2E | **Done (Feature Complete / frozen)** — [v1 checklist](adr/ADR-0020-lifecycle-v1-release-checklist.md) |
+| **P3** | Inbound message persistence / conversation thread | **Done** — [P3](P3-inbound-persistence.md); event `message.inbound.received.v1` |
+
+**Platform-first:** capability work builds on ADR-0020, OpenAPI, and event contracts — it does not change them. See [CONTRIBUTING](../CONTRIBUTING.md).
+
+### Capability roadmap (independent milestones)
+
+Each item is a separate ADR/milestone. Consume `Conversation`, `Message`, `message.inbound.received.v1`, and the `READY` / messaging-ready gate — do not reopen Lifecycle v1.
+
+| Priority | Capability | Notes |
+|----------|------------|-------|
+| **P4** | Conversation orchestration / routing | New ADR when prioritized |
+| **P5** | Customer Identity (above Conversation) | New ADR; Identity Evolution backlog |
+| **P6** | Agent inbox and assignment | New ADR |
+| **P7** | Automation / bot engine | New ADR |
+| **P8** | Marketing Domain | ADR-0019; waiting for prioritization |
+| **P9** | Analytics and reporting | New ADR |
+| Frozen (until prioritized) | CAPI, Ads, `manage_events`, ConversationReferral feature freeze | No eng work that extends frozen Conversation marketing surface |
+
 ## Related Documents
 
 - [README](../README.md) — project overview
@@ -248,6 +266,7 @@ Out of scope forever under ADR-0019: campaign management, audience creation, ad 
 - [ADR-0019](adr/ADR-0019-marketing-events-attribution.md) — Marketing Domain and Attribution Events
 - [ADR-0020](adr/ADR-0020-tenant-whatsapp-connection-lifecycle.md) — Tenant WhatsApp Connection Lifecycle (v1 Feature Complete / frozen)
 - [ADR-0020 v1 release checklist](adr/ADR-0020-lifecycle-v1-release-checklist.md) — Provisioning Lifecycle v1 freeze closeout
+- [P3 inbound persistence](P3-inbound-persistence.md) — inbound Message + thread API
 - [Meta WhatsApp Solution Partner runbook](providers/meta-whatsapp-solution-partner.md) — ops checklist (assets, App Review, tokens, credit line)
 - [docs/rfcs/](rfcs/) — proposed changes not yet accepted
-- [CONTRIBUTING.md](../CONTRIBUTING.md) — contribution guidelines
+- [CONTRIBUTING.md](../CONTRIBUTING.md) — contribution guidelines (Platform-first policy)
