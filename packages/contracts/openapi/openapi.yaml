@@ -30,6 +30,11 @@ tags:
     description: Outbound message commands
   - name: WhatsApp
     description: WhatsApp account onboarding (Embedded Signup)
+  - name: PartnerInvites
+    description: |
+      One-time partner onboarding invites (capability-partner-onboarding-v1).
+      Ops create/revoke use Admin Basic auth under `/admin/partner-invites`
+      (not in this public contract).
 security:
   - BearerAuth: []
 paths:
@@ -183,6 +188,41 @@ paths:
         "401":
           $ref: "#/components/responses/Error"
         "404":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /v1/partner-invites/accept:
+    post:
+      operationId: acceptPartnerInvite
+      tags: [PartnerInvites]
+      summary: Accept a one-time partner invite
+      description: |
+        Consumes a pending invite token and bootstraps a Tenant plus the first
+        API key. The plaintext API key is returned once. Re-accepting the same
+        token returns HTTP 410 (`invite_already_accepted`) without creating a
+        second tenant. Concurrent accept races are serialized; the loser sees
+        410 after the winner commits.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AcceptPartnerInviteRequest"
+      responses:
+        "200":
+          description: Invite accepted; tenant and API key created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcceptPartnerInviteResponse"
+        "404":
+          $ref: "#/components/responses/Error"
+        "410":
+          description: Invite already accepted, expired, or revoked
           $ref: "#/components/responses/Error"
         default:
           $ref: "#/components/responses/Error"
@@ -471,6 +511,34 @@ components:
           description: API/build version string
         checks:
           $ref: "#/components/schemas/HealthChecks"
+
+    AcceptPartnerInviteRequest:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token:
+          type: string
+          minLength: 8
+          maxLength: 256
+          description: One-time invite token from the onboard URL
+
+    AcceptPartnerInviteResponse:
+      type: object
+      additionalProperties: false
+      required: [invite_id, tenant_id, api_key_id, api_key, partner_name]
+      properties:
+        invite_id:
+          type: string
+        tenant_id:
+          type: string
+        api_key_id:
+          type: string
+        api_key:
+          type: string
+          description: Plaintext API key; shown only on first accept
+        partner_name:
+          type: string
 
     CreateMessageRequest:
       type: object

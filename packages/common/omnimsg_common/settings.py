@@ -124,6 +124,21 @@ class Settings(BaseSettings):
             "(ADMIN_API_KEY_GRACE_HOURS); old key stays valid until expiry"
         ),
     )
+    portal_base_url: str = Field(
+        default="https://app.omnimsg.io",
+        description=(
+            "Public portal origin for partner onboard URLs (PORTAL_BASE_URL)"
+        ),
+    )
+    partner_invite_ttl_hours: int = Field(
+        default=168,
+        ge=1,
+        le=720,
+        description=(
+            "Default invite accept TTL in hours (PARTNER_INVITE_TTL_HOURS); "
+            "applies only to accept, not post-accept provisioning"
+        ),
+    )
     log_level: str = Field(default="INFO")
 
     @property

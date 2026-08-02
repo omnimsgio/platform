@@ -47,6 +47,11 @@ app = FastAPI(
     openapi_url=None,
 )
 
+# Partner invite JSON routes before SQLAdmin mount so /admin/partner-invites wins.
+from omnimsg_api.partner_invite import mount_partner_invite_routes  # noqa: E402
+
+mount_partner_invite_routes(app)
+
 # Ops admin (ADR-0022); no-op when ADMIN_USERNAME/PASSWORD unset.
 from omnimsg_api.admin import mount_admin  # noqa: E402
 
