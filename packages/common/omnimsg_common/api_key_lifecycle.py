@@ -6,11 +6,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from omnimsg_common.auth import generate_api_key, hash_api_key, key_display_prefix
 from omnimsg_common.db.models import ApiKey, Tenant
 from omnimsg_common.ids import new_id
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 
 
 class ApiKeyLifecycleError(Exception):

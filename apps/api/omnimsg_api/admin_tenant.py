@@ -76,7 +76,8 @@ class TenantAdmin(ModelView, model=Tenant):
         request: Request,
     ) -> None:
         if is_created:
-            raw_id = (data.get("id") or "").strip() if isinstance(data.get("id"), str) else data.get("id")
+            raw = data.get("id")
+            raw_id = raw.strip() if isinstance(raw, str) else raw
             if not raw_id:
                 data["id"] = new_id("ten")
             status = data.get("status") or "active"

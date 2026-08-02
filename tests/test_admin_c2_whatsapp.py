@@ -16,10 +16,10 @@ from omnimsg_common.ids import new_id
 from omnimsg_common.settings import get_settings
 from omnimsg_common.whatsapp_lifecycle import (
     ERROR,
+    HEALTH_CHECK_PENDING,
     READY,
     REASON_HEALTH_CHECK_FAILED,
     REASON_HEALTH_OK,
-    HEALTH_CHECK_PENDING,
     bootstrap_ready,
     transition,
 )
