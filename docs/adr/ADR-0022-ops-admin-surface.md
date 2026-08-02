@@ -55,6 +55,7 @@ v1 uses a single Basic principal. ADR reserves future roles without implementing
 
 - **C1:** auth, mount, audit schema, read-only enforcement, admin home (DB/Redis/version/contract), runbook.
 - **C2:** Tenant / ApiKey / WhatsApp / Message views; two-step key rotation with grace period.
+  Each view is **deployable alone** (Tenant → ApiKey → WhatsApp → Message); no big-bang C2 merge.
 
 ## Consequences
 

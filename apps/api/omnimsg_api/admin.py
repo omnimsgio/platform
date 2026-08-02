@@ -112,10 +112,12 @@ class AdminReadOnlyMiddleware(BaseHTTPMiddleware):
         if not settings.admin_read_only:
             return await call_next(request)
         method = request.method.upper()
+        # SQLAdmin custom actions are registered as GET but mutate state (C2+).
+        is_sqladmin_action = "/action/" in path
         # Allow GET/HEAD/OPTIONS and SQLAdmin login/logout GETs; block mutations.
-        if method in _WRITE_METHODS:
+        if method in _WRITE_METHODS or is_sqladmin_action:
             # Permit login POST so operators can still open a session to browse.
-            if path.rstrip("/").endswith("/login"):
+            if path.rstrip("/").endswith("/login") and method in _WRITE_METHODS:
                 return await call_next(request)
             correlation = request.headers.get("x-correlation-id") or new_id("req")
             return JSONResponse(
@@ -329,6 +331,10 @@ a{{color:#79b8ff}}
         title="OmniMsg Ops",
     )
     admin.add_view(AdminAuditEventAdmin)
+    # C2 views — each deployable independently (ADR-0022).
+    from omnimsg_api.admin_tenant import TenantAdmin
+
+    admin.add_view(TenantAdmin)
 
     logger.info(
         "admin mounted at /admin read_only=%s",

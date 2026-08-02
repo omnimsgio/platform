@@ -210,7 +210,7 @@ Out of scope forever under ADR-0019: campaign management, audience creation, ad 
 | NORTH_STAR | Done | This document |
 | OpenAPI contracts | Done | Contract SSOT + edge `/openapi.json` / `/docs` / `/redoc`; `x-contract-version` `1.0.0`; readiness `/v1/health` |
 | Public API surface (ADR-0021) | **Done (production)** | 2026-08-02 on `api.omnimsg.io`; baseline tag `cpaas-openapi-surface-v1`; [evidence](runbooks/production-openapi-surface-evidence-2026-08-02.md) |
-| Ops admin (`/admin`, ADR-0022) | In progress (C1) | Basic + IP allowlist + audit + `ADMIN_READ_ONLY`; views (C2) next |
+| Ops admin (`/admin`, ADR-0022) | In progress (C2) | C1 production GO; C2 views ship independently (Tenant → ApiKey → WhatsApp → Message) |
 | Event contracts | Done | `message.queued.v1`, `message.delivery_updated.v1`, `webhook.inbound.received.v1` |
 | apps/gateway | Done | Bearer auth, rate limit, Meta webhooks; public discovery `/`, `/version`, `/health`, contract docs; fail-fast OpenAPI load |
 | apps/api | Done | Persist + idempotency, internal auth resolve, ADR-0015 validation; `/v1/health` readiness (DB+Redis) |

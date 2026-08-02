@@ -33,9 +33,11 @@ curl -sS -o /dev/null -w '%{http_code}\n' -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
 
 `GET /admin/home` shows DB / Redis / app version / environment / contract version / read-only flag.
 
-SQLAdmin UI: `/admin/` (Audit Events view in C1; Tenant/ApiKey/WhatsApp/Message in C2).
+SQLAdmin UI: `/admin/` — Audit Events (C1); **Tenant** (C2.1); ApiKey / WhatsApp / Message (C2.2–C2.4, each deployable alone).
 
 Production C1 GO evidence: [production-admin-c1-evidence-2026-08-02.md](production-admin-c1-evidence-2026-08-02.md).
+
+When `ADMIN_READ_ONLY=true`, the API also denies SQLAdmin **action** routes (`/admin/.../action/...`), which are registered as GET but mutate state.
 
 ## Security notes
 
