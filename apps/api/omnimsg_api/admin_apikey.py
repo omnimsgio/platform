@@ -23,7 +23,7 @@ from sqladmin.secret import Secret
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse, Response
 
-from omnimsg_api.admin_helpers import actor, audit_meta, record_audit
+from omnimsg_api.admin_helpers import actor, audit_meta, public_url, record_audit
 
 _REVEAL_SESSION_KEY = "_api_key_reveal_once"
 
@@ -135,7 +135,7 @@ class ApiKeyAdmin(ModelView, model=ApiKey):
     def _redirect_list(
         self, request: Request, *, error: str | None = None
     ) -> RedirectResponse:
-        url = str(request.url_for("admin:list", identity=self.identity))
+        url = public_url(request, "admin:list", identity=self.identity)
         if error:
             url = f"{url}?error={quote(error)}"
         return RedirectResponse(url)
@@ -257,7 +257,7 @@ class ApiKeyAdmin(ModelView, model=ApiKey):
             "grace_expires_at": grace_iso,
         }
         return RedirectResponse(
-            str(request.url_for(f"admin:view-{self.identity}-reveal"))
+            public_url(request, f"admin:view-{self.identity}-reveal")
         )
 
     @action(
@@ -307,7 +307,7 @@ class ApiKeyAdmin(ModelView, model=ApiKey):
     async def reveal(self, request: Request) -> Response:
         """One-shot plaintext page after rotate_start (session-backed)."""
         payload = request.session.pop(_REVEAL_SESSION_KEY, None)
-        list_url = str(request.url_for("admin:list", identity=self.identity))
+        list_url = public_url(request, "admin:list", identity=self.identity)
         if not isinstance(payload, dict) or "plaintext" not in payload:
             html = f"""<!DOCTYPE html>
 <html><head><title>API key already shown</title>

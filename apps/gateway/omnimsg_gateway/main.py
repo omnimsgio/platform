@@ -23,6 +23,7 @@ from omnimsg_common.openapi_contract import (
     load_openapi_contract,
     resolve_contract_path,
 )
+from omnimsg_common.proxy_urls import rewrite_internal_location
 from omnimsg_common.queue import create_redis_client, enqueue_json
 from omnimsg_common.settings import get_settings
 from omnimsg_common.whatsapp_lifecycle import messaging_ready_statuses
@@ -359,6 +360,11 @@ async def proxy_admin(request: Request, path: str = "") -> Response:
         if key.lower() not in HOP_BY_HOP
     }
     headers["x-correlation-id"] = correlation_id
+    # Ensure admin URL generation behind Traefik uses the public host.
+    if "x-forwarded-host" not in {k.lower() for k in headers}:
+        headers["x-forwarded-host"] = request.headers.get("host") or "api.omnimsg.io"
+    if "x-forwarded-proto" not in {k.lower() for k in headers}:
+        headers["x-forwarded-proto"] = request.url.scheme or "https"
     client: httpx.AsyncClient = request.app.state.http
     try:
         upstream = await client.request(
@@ -377,21 +383,38 @@ async def proxy_admin(request: Request, path: str = "") -> Response:
             correlation_id=correlation_id,
             retryable=True,
         )
+    out_headers = {
+        key: value
+        for key, value in upstream.headers.items()
+        if key.lower()
+        not in {
+            "content-encoding",
+            "content-length",
+            "transfer-encoding",
+            "connection",
+        }
+    }
+    loc = out_headers.get("location") or out_headers.get("Location")
+    if loc:
+        public_origin = str(request.base_url).rstrip("/")
+        # Prefer forwarded public origin when present.
+        fwd_host = (
+            request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+        ).split(",")[0].strip()
+        fwd_proto = (
+            request.headers.get("x-forwarded-proto") or request.url.scheme or "https"
+        ).split(",")[0].strip()
+        if fwd_host:
+            public_origin = f"{fwd_proto}://{fwd_host}"
+        rewritten = rewrite_internal_location(loc, public_origin=public_origin)
+        # Header key casing from httpx may vary.
+        for key in list(out_headers):
+            if key.lower() == "location":
+                out_headers[key] = rewritten
     return Response(
         content=upstream.content,
         status_code=upstream.status_code,
-        headers={
-            key: value
-            for key, value in upstream.headers.items()
-            if key.lower()
-            not in {
-                "content-encoding",
-                "content-length",
-                "transfer-encoding",
-                "connection",
-            }
-        }
-        | {"X-Correlation-Id": correlation_id},
+        headers=out_headers | {"X-Correlation-Id": correlation_id},
         media_type=upstream.headers.get("content-type"),
     )
 

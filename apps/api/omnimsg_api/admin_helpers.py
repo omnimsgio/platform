@@ -5,9 +5,20 @@ from __future__ import annotations
 from typing import Any
 
 from omnimsg_common.ids import new_id
+from omnimsg_common.proxy_urls import is_internal_service_host, rewrite_internal_location
+from starlette.datastructures import URL
 from starlette.requests import Request
 
 from omnimsg_api import admin as admin_mod
+
+__all__ = [
+    "actor",
+    "audit_meta",
+    "client_ip",
+    "public_url",
+    "record_audit",
+    "rewrite_internal_location",
+]
 
 
 def actor(request: Request) -> str:
@@ -36,3 +47,23 @@ def audit_meta(request: Request) -> dict[str, str | None]:
 
 def record_audit(**kwargs: Any) -> None:
     admin_mod.record_admin_audit(**kwargs)
+
+
+def public_url(request: Request, name: str, **path_params: Any) -> str:
+    """Build an absolute URL using forwarded host/proto behind Traefik/gateway.
+
+    ``request.url_for`` alone often yields the internal Docker hostname
+    (e.g. ``omnimsgio-api:8000``) when the admin is reverse-proxied.
+    """
+    generated = URL(str(request.url_for(name, **path_params)))
+    proto = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip()
+    host = (request.headers.get("x-forwarded-host") or "").split(",")[0].strip()
+    if not host:
+        raw_host = (request.headers.get("host") or "").split(",")[0].strip()
+        if raw_host and not is_internal_service_host(raw_host):
+            host = raw_host
+    if proto and host:
+        return str(generated.replace(scheme=proto, netloc=host))
+    if host:
+        return str(generated.replace(netloc=host))
+    return str(generated)
