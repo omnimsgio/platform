@@ -43,6 +43,8 @@ SQLAdmin UI: `/admin/` — Audit Events (C1); **Tenant** (C2.1); **API Keys** (C
 - Detail: timestamps, ids, redacted payload (tokens/phones/emails), derived error / provider response when present in payload.
 - Filters: tenant, status, channel, direction, created_at (operators).
 
+### WhatsApp accounts (C2.3)
+
 - Read-mostly list/details; `business_access_token` masked (`••••` + last 4).
 - No create/edit/delete of credentials or free-form status.
 - **Retry provisioning** (ERROR only) → `RetryService` → `transition()`.
@@ -60,7 +62,8 @@ Production C1 GO evidence: [production-admin-c1-evidence-2026-08-02.md](producti
 C2.1 Tenant evidence: [production-admin-c2.1-tenant-evidence-2026-08-02.md](production-admin-c2.1-tenant-evidence-2026-08-02.md).  
 C2.2 ApiKey evidence: [production-admin-c2.2-apikey-evidence-2026-08-02.md](production-admin-c2.2-apikey-evidence-2026-08-02.md).  
 C2.2 rotation checkpoint (**PASS**): [production-admin-c2.2-rotation-checkpoint-2026-08-03.md](production-admin-c2.2-rotation-checkpoint-2026-08-03.md).  
-C2.3 WhatsApp evidence: [production-admin-c2.3-whatsapp-evidence-2026-08-03.md](production-admin-c2.3-whatsapp-evidence-2026-08-03.md).
+C2.3 WhatsApp evidence: [production-admin-c2.3-whatsapp-evidence-2026-08-03.md](production-admin-c2.3-whatsapp-evidence-2026-08-03.md).  
+C2.4 Message evidence: [production-admin-c2.4-message-evidence-2026-08-03.md](production-admin-c2.4-message-evidence-2026-08-03.md).
 
 When `ADMIN_READ_ONLY=true`, the API also denies SQLAdmin **action** routes (`/admin/.../action/...`), which are registered as GET but mutate state.
 
