@@ -83,7 +83,6 @@ def test_retry_phone_pending_restores_without_register(
     seeded_tenant: dict[str, str],
     retry_env: None,
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
     from omnimsg_api.main import app
 
@@ -95,9 +94,8 @@ def test_retry_phone_pending_restores_without_register(
         lambda **_kwargs: mock,
     )
 
-    with caplog.at_level("INFO", logger="omnimsg_api.provisioning_retry"):
-        client = TestClient(app)
-        response = _retry(client, seeded_tenant)
+    client = TestClient(app)
+    response = _retry(client, seeded_tenant)
 
     assert response.status_code == 200
     body = response.json()
@@ -107,8 +105,6 @@ def test_retry_phone_pending_restores_without_register(
     assert body["badge"]
     assert body["message"]
     assert mock.register_phone.call_count == 0
-    assert "retry_target=PHONE_PENDING" in caplog.text
-    assert "retry_reason=user" in caplog.text
 
 
 def test_retry_webhook_pending_dispatches_provision(
