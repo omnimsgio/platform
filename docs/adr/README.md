@@ -47,6 +47,22 @@ Proposed | Accepted | Accepted — Architecture Locked | Superseded by ADR-00YY
 
 YYYY-MM-DD
 
+## Platform dependencies
+
+*(Required for capability ADRs, P4+. Omit only for pure Foundation/platform ADRs.)*
+
+Uses:
+
+- ADR-0020 (Lifecycle v1) — messaging-ready gate only
+- message.inbound.received.v1
+- Conversation / Message (platform domain models)
+- Thread API / other OpenAPI contracts as needed
+
+Does not modify:
+
+- Lifecycle / Provisioning / ADR-0020 state machine
+- Existing platform contracts (breaking changes need a new contract version)
+
 ## Context
 
 Why a decision is needed.
@@ -71,3 +87,5 @@ What we will do.
 ```
 
 File name: `ADR-00XX-short-kebab-title.md`.
+
+Capability ADRs must follow the **Platform-first policy** in [CONTRIBUTING.md](../../CONTRIBUTING.md): integrate via API, event contracts, or documented platform models — never via another capability’s internals.
