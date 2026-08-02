@@ -42,7 +42,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://omnimsgio:omnimsgio@localhost:5432/omnimsgio
       REDIS_URL: redis://localhost:6379/3
-      REDIS_KEY_PREFIX: omnimsgio:
+      REDIS_KEY_PREFIX: "omnimsgio:"
       RATE_LIMIT_PER_MINUTE: "60"
     steps:
       - name: Checkout
