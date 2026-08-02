@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- SQLAdmin **v1 Complete / frozen** (`cpaas-sqladmin-v1`); further admin ideas tracked in [SQLAdmin v2 backlog](docs/backlog/sqladmin-v2.md)
 - GTM pivot to Meta WhatsApp **Solution Partner** (ADR-0018): credit line toward Meta, OmniMsg invoices clients; ADR-0017 Tech Provider path superseded
 - North Star, README, and ADR index updated for Solution Partner GTM; Solution Partner ops runbook and SP technical milestones documented
 - North Star: Meta SP / App Review / credit line marked **In progress** (ops kickoff tracked outside the repo)

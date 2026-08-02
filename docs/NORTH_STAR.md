@@ -210,7 +210,7 @@ Out of scope forever under ADR-0019: campaign management, audience creation, ad 
 | NORTH_STAR | Done | This document |
 | OpenAPI contracts | Done | Contract SSOT + edge `/openapi.json` / `/docs` / `/redoc`; `x-contract-version` `1.0.0`; readiness `/v1/health` |
 | Public API surface (ADR-0021) | **Done (production)** | 2026-08-02 on `api.omnimsg.io`; baseline tag `cpaas-openapi-surface-v1`; [evidence](runbooks/production-openapi-surface-evidence-2026-08-02.md) |
-| Ops admin (`/admin`, ADR-0022) | **Done (SQLAdmin v1)** | C1–C2.4 in production (Tenant, ApiKey, WhatsApp, Message); no further admin scope this iteration |
+| Ops admin (`/admin`, ADR-0022) | **Done / frozen (SQLAdmin v1)** | Tag `cpaas-sqladmin-v1`; [closeout](runbooks/production-admin-sqladmin-v1-closeout-2026-08-03.md); v2 ideas in [backlog](backlog/sqladmin-v2.md) |
 | Event contracts | Done | `message.queued.v1`, `message.delivery_updated.v1`, `webhook.inbound.received.v1` |
 | apps/gateway | Done | Bearer auth, rate limit, Meta webhooks; public discovery `/`, `/version`, `/health`, contract docs; fail-fast OpenAPI load |
 | apps/api | Done | Persist + idempotency, internal auth resolve, ADR-0015 validation; `/v1/health` readiness (DB+Redis) |
@@ -235,7 +235,7 @@ Out of scope forever under ADR-0019: campaign management, audience creation, ad 
 
 ### CPaaS Foundation (complete)
 
-Platform baselines (do not retag/move): `cpaas-lifecycle-v1`, `cpaas-inbound-persistence-v1`, `cpaas-openapi-surface-v1`.
+Platform baselines (do not retag/move): `cpaas-lifecycle-v1`, `cpaas-inbound-persistence-v1`, `cpaas-openapi-surface-v1`, `cpaas-sqladmin-v1`.
 
 | Priority | Work | Notes |
 |----------|------|-------|
@@ -244,7 +244,9 @@ Platform baselines (do not retag/move): `cpaas-lifecycle-v1`, `cpaas-inbound-per
 | **P2** | Phone registration, webhook verify, health → `READY`, retry, E2E | **Done (Feature Complete / frozen)** — [v1 checklist](adr/ADR-0020-lifecycle-v1-release-checklist.md) |
 | **P3** | Inbound message persistence / conversation thread | **Done** — [P3](P3-inbound-persistence.md); event `message.inbound.received.v1` |
 
-**Platform-first:** capability work builds on ADR-0020, OpenAPI, and event contracts — it does not change them. See [CONTRIBUTING](../CONTRIBUTING.md).
+**Platform-first:** capability work builds on ADR-0020, OpenAPI (`cpaas-openapi-surface-v1`), SQLAdmin (`cpaas-sqladmin-v1`), and event contracts — it does not change them. See [CONTRIBUTING](../CONTRIBUTING.md).
+
+**After SQLAdmin v1 freeze, preferred focus:** Embedded Signup / onboarding polish → messaging API stabilisation → webhook lifecycle → SDK generation → partner docs → first external tenant.
 
 ### Capability roadmap (independent milestones)
 

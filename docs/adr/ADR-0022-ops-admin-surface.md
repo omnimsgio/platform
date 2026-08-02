@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted — **SQLAdmin v1 Complete / frozen** (`cpaas-sqladmin-v1`)
 
 ## Date
 
@@ -53,9 +53,10 @@ v1 uses a single Basic principal. ADR reserves future roles without implementing
 
 ### Phasing
 
-- **C1:** auth, mount, audit schema, read-only enforcement, admin home (DB/Redis/version/contract), runbook.
+- **C1:** auth, mount, audit schema, read-only enforcement, admin home (DB/Redis/version/contract), runbook. **Done.**
 - **C2:** Tenant / ApiKey / WhatsApp / Message views; two-step key rotation with grace period.
-  Each view is **deployable alone** (Tenant → ApiKey → WhatsApp → Message); no big-bang C2 merge.
+  Each view is **deployable alone** (Tenant → ApiKey → WhatsApp → Message); no big-bang C2 merge. **Done.**
+- **v1 freeze:** no further admin views or auth changes in this iteration. See [SQLAdmin v2 backlog](../backlog/sqladmin-v2.md) and [closeout](../runbooks/production-admin-sqladmin-v1-closeout-2026-08-03.md).
 
 ## Consequences
 

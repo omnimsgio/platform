@@ -34,7 +34,9 @@ curl -sS -o /dev/null -w '%{http_code}\n' -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
 
 `GET /admin/home` shows DB / Redis / app version / environment / contract version / read-only flag.
 
-SQLAdmin UI: `/admin/` — Audit Events (C1); **Tenant** (C2.1); **API Keys** (C2.2); **WhatsApp Accounts** (C2.3); **Messages** (C2.4). SQLAdmin v1 complete.
+SQLAdmin UI: `/admin/` — Audit Events (C1); **Tenant** (C2.1); **API Keys** (C2.2); **WhatsApp Accounts** (C2.3); **Messages** (C2.4).
+
+**SQLAdmin v1 status: Complete / frozen** — baseline tag `cpaas-sqladmin-v1`; [closeout](production-admin-sqladmin-v1-closeout-2026-08-03.md). New ideas → [SQLAdmin v2 backlog](../backlog/sqladmin-v2.md).
 
 ### Messages (C2.4)
 
@@ -63,7 +65,8 @@ C2.1 Tenant evidence: [production-admin-c2.1-tenant-evidence-2026-08-02.md](prod
 C2.2 ApiKey evidence: [production-admin-c2.2-apikey-evidence-2026-08-02.md](production-admin-c2.2-apikey-evidence-2026-08-02.md).  
 C2.2 rotation checkpoint (**PASS**): [production-admin-c2.2-rotation-checkpoint-2026-08-03.md](production-admin-c2.2-rotation-checkpoint-2026-08-03.md).  
 C2.3 WhatsApp evidence: [production-admin-c2.3-whatsapp-evidence-2026-08-03.md](production-admin-c2.3-whatsapp-evidence-2026-08-03.md).  
-C2.4 Message evidence: [production-admin-c2.4-message-evidence-2026-08-03.md](production-admin-c2.4-message-evidence-2026-08-03.md).
+C2.4 Message evidence: [production-admin-c2.4-message-evidence-2026-08-03.md](production-admin-c2.4-message-evidence-2026-08-03.md).  
+SQLAdmin v1 closeout: [production-admin-sqladmin-v1-closeout-2026-08-03.md](production-admin-sqladmin-v1-closeout-2026-08-03.md).
 
 When `ADMIN_READ_ONLY=true`, the API also denies SQLAdmin **action** routes (`/admin/.../action/...`), which are registered as GET but mutate state.
 
