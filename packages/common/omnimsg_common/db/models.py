@@ -67,6 +67,21 @@ class ApiKey(Base):
     key_prefix: Mapped[str] = mapped_column(String(32), nullable=False)
     key_hash: Mapped[str] = mapped_column(String(128), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
+    # Two-step rotation (ADR-0022 C2.2): old.replaced_by → new; new.replaces → old.
+    replaced_by_key_id: Mapped[str | None] = mapped_column(
+        String(64),
+        ForeignKey("api_keys.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    replaces_key_id: Mapped[str | None] = mapped_column(
+        String(64),
+        ForeignKey("api_keys.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    grace_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

@@ -332,9 +332,11 @@ a{{color:#79b8ff}}
     )
     admin.add_view(AdminAuditEventAdmin)
     # C2 views — each deployable independently (ADR-0022).
+    from omnimsg_api.admin_apikey import ApiKeyAdmin
     from omnimsg_api.admin_tenant import TenantAdmin
 
     admin.add_view(TenantAdmin)
+    admin.add_view(ApiKeyAdmin)
 
     logger.info(
         "admin mounted at /admin read_only=%s",

@@ -115,6 +115,15 @@ class Settings(BaseSettings):
             "(ADMIN_ALLOWED_CIDRS)"
         ),
     )
+    admin_api_key_grace_hours: int = Field(
+        default=24,
+        ge=1,
+        le=168,
+        description=(
+            "Grace window (hours) for two-step API key rotation "
+            "(ADMIN_API_KEY_GRACE_HOURS); old key stays valid until expiry"
+        ),
+    )
     log_level: str = Field(default="INFO")
 
     @property

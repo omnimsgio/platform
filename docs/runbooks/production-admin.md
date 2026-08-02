@@ -10,13 +10,14 @@
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | HTTP Basic credentials (both required to enable admin) |
 | `ADMIN_READ_ONLY` | `true` → server-side deny on all admin writes (403 `admin_read_only`) |
 | `ADMIN_ALLOWED_CIDRS` | Traefik `ipallowlist` source ranges for `/admin` (comma-separated) |
+| `ADMIN_API_KEY_GRACE_HOURS` | Hours the old key stays valid after **Start rotation** (default `24`, max `168`) |
 
 Never use tenant API keys as admin credentials.
 
 ## Bring-up checklist
 
 1. Set admin secrets + CIDRs in dedicated-hel1 `.env`.
-2. `omnimsg-migrate upgrade head` (creates `admin_audit_events`).
+2. `omnimsg-migrate upgrade head` (includes `admin_audit_events`, `009_api_key_rotation`).
 3. Rebuild/recreate `api` + `gateway`.
 4. From an allowlisted IP:
 
@@ -33,7 +34,14 @@ curl -sS -o /dev/null -w '%{http_code}\n' -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
 
 `GET /admin/home` shows DB / Redis / app version / environment / contract version / read-only flag.
 
-SQLAdmin UI: `/admin/` — Audit Events (C1); **Tenant** (C2.1); ApiKey / WhatsApp / Message (C2.2–C2.4, each deployable alone).
+SQLAdmin UI: `/admin/` — Audit Events (C1); **Tenant** (C2.1); **API Keys** (C2.2); WhatsApp / Message (C2.3–C2.4, each deployable alone).
+
+### API Key rotation (C2.2)
+
+1. Select an active key → **Start rotation** (confirmation) → copy the new plaintext once.
+2. Both keys authenticate until `grace_expires_at` (`ADMIN_API_KEY_GRACE_HOURS`).
+3. Select the **old** key → **Finish rotation** to revoke it (or wait for grace expiry — auth rejects the old key automatically).
+4. Audit actions: `apikey_create`, `apikey_rotate_start`, `apikey_rotate_finish`, `apikey_deactivate`.
 
 Production C1 GO evidence: [production-admin-c1-evidence-2026-08-02.md](production-admin-c1-evidence-2026-08-02.md).  
 C2.1 Tenant evidence: [production-admin-c2.1-tenant-evidence-2026-08-02.md](production-admin-c2.1-tenant-evidence-2026-08-02.md).

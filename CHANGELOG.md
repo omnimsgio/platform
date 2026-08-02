@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Ops admin C2.2: SQLAdmin **API Key** view — create (plaintext once via sqladmin Secret), deactivate, two-step rotate with `ADMIN_API_KEY_GRACE_HOURS`, finish revoke; migration `009_api_key_rotation`; auth rejects old key after grace
 - Ops admin C2.1: SQLAdmin **Tenant** view (create/edit, activate/deactivate with confirmation, audit); `ADMIN_READ_ONLY` also blocks SQLAdmin `/action/` GET mutators
 - Ops admin C1 (ADR-0022): `/admin` Basic auth at gateway, SQLAdmin mount, `admin_audit_events` (indexes + downgrade), `ADMIN_READ_ONLY` server-side write deny, `/admin/home` readiness chips, Traefik IP allowlist, [production-admin](docs/runbooks/production-admin.md) runbook
 

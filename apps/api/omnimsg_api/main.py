@@ -10,6 +10,7 @@ import uvicorn
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from omnimsg_common.api_key_lifecycle import api_key_is_usable
 from omnimsg_common.auth import hash_api_key, looks_like_api_key
 from omnimsg_common.db.models import ApiKey, Conversation, Message, Tenant
 from omnimsg_common.db.session import get_engine, session_scope
@@ -368,12 +369,22 @@ async def resolve_auth(body: ResolveAuthRequest) -> ResolveAuthResponse:
     digest = hash_api_key(raw)
     with session_scope() as session:
         row = session.scalars(
-            select(ApiKey).where(
-                ApiKey.key_hash == digest,
-                ApiKey.status == "active",
-            )
+            select(ApiKey).where(ApiKey.key_hash == digest)
         ).first()
-        if row is None:
+        if row is None or not api_key_is_usable(row):
+            # Lazy-close expired grace rotations so list status stays accurate.
+            if (
+                row is not None
+                and row.status == "active"
+                and row.replaced_by_key_id is not None
+                and row.grace_expires_at is not None
+            ):
+                grace = row.grace_expires_at
+                if grace.tzinfo is None:
+                    grace = grace.replace(tzinfo=UTC)
+                if grace <= datetime.now(UTC):
+                    row.status = "inactive"
+                    session.add(row)
             raise _error(
                 401,
                 code="unauthorized",
