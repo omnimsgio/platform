@@ -35,8 +35,11 @@ curl -sS -o /dev/null -w '%{http_code}\n' -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
 
 SQLAdmin UI: `/admin/` (Audit Events view in C1; Tenant/ApiKey/WhatsApp/Message in C2).
 
+Production C1 GO evidence: [production-admin-c1-evidence-2026-08-02.md](production-admin-c1-evidence-2026-08-02.md).
+
 ## Security notes
 
-- IP allowlist is mandatory in production; default compose falls back to `127.0.0.1/32` if unset.
+- IP allowlist is mandatory in production; use operator client CIDRs. With Cloudflare orange-cloud, Traefik must use `ipstrategy.depth=1` (already labeled) so allowlist matches `CF` / `X-Forwarded-For` client IP, not the edge hop.
+- Default compose falls back to `127.0.0.1/32` if `ADMIN_ALLOWED_CIDRS` unset.
 - Future roles (Viewer / Operator / Admin) are reserved in ADR-0022; v1 is a single Basic principal.
 - Audit rows: `admin_audit_events` (indexed on `created_at`, `entity_type`, `entity_id`); downgrade supported.

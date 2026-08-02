@@ -60,6 +60,7 @@ services:
       - traefik.http.routers.omnimsgio-admin.middlewares=omnimsgio-admin-ip
       - traefik.http.routers.omnimsgio-admin.service=omnimsgio-api
       - traefik.http.middlewares.omnimsgio-admin-ip.ipallowlist.sourcerange=${ADMIN_ALLOWED_CIDRS:-127.0.0.1/32}
+      - traefik.http.middlewares.omnimsgio-admin-ip.ipallowlist.ipstrategy.depth=1
       - traefik.http.services.omnimsgio-api.loadbalancer.server.port=8000
     restart: unless-stopped
 
