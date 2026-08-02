@@ -1,0 +1,12 @@
+{
+  "tested_at": "2026-08-02T18:12:09+02:00",
+  "field": "account_review_update",
+  "version": "v26.0",
+  "dashboard_result": "Successfully tested",
+  "sample": {
+    "field": "account_review_update",
+    "value": {
+      "decision": "APPROVED"
+    }
+  }
+}

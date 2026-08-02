@@ -54,6 +54,7 @@ from omnimsg_common.auth import generate_api_key, hash_api_key, key_display_pref
 from omnimsg_common.db.models import ApiKey, Tenant, TenantWhatsappAccount
 from omnimsg_common.db.session import session_scope
 from omnimsg_common.ids import new_id
+from omnimsg_common.whatsapp_lifecycle import READY, bootstrap_ready
 from sqlalchemy import select
 
 tenant_id = os.environ["SEED_TENANT_ID"]
@@ -115,23 +116,24 @@ with session_scope() as session:
                 )
             ).first()
         if account is None:
-            session.add(
-                TenantWhatsappAccount(
-                    id=new_id("twa"),
-                    tenant_id=tenant_id,
-                    waba_id=meta_waba_id,
-                    phone_number_id=meta_phone_number_id,
-                    business_access_token=meta_business_access_token,
-                    credit_line_attached=False,
-                    status="active",
-                )
+            account = TenantWhatsappAccount(
+                id=new_id("twa"),
+                tenant_id=tenant_id,
+                waba_id=meta_waba_id,
+                phone_number_id=meta_phone_number_id,
+                business_access_token=meta_business_access_token,
+                credit_line_attached=False,
+                status=READY,
+                lifecycle_version=1,
             )
+            session.add(account)
+            bootstrap_ready(account, correlation_id="req_seed_local")
         else:
             account.tenant_id = tenant_id
             account.waba_id = meta_waba_id
             account.phone_number_id = meta_phone_number_id
             account.business_access_token = meta_business_access_token
-            account.status = "active"
+            bootstrap_ready(account, correlation_id="req_seed_local")
 
 print(raw_key)
 print(

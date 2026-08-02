@@ -63,6 +63,12 @@ jobs:
       - name: WhatsApp lifecycle SSOT
         run: ./scripts/check-whatsapp-lifecycle-ssot.sh
 
+      - name: OpenAPI lint
+        run: ./scripts/check-openapi-lint.sh
+
+      - name: OpenAPI path/method parity
+        run: ./scripts/check-openapi-parity.sh
+
       - name: Apply migrations
         run: omnimsg-migrate upgrade head
 
@@ -81,6 +87,9 @@ jobs:
 
       - name: OpenAPI contract present
         run: test -f packages/contracts/openapi/openapi.yaml
+
+      - name: OpenAPI runtime smoke
+        run: ./scripts/smoke-openapi-runtime.sh
 
   web-build:
     name: Next.js apps/web

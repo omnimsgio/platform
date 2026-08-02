@@ -36,8 +36,8 @@ class Settings(BaseSettings):
         description="Inbound webhook queue suffix (under redis_key_prefix)",
     )
     api_url: str = Field(
-        default="http://api:8000",
-        description="Internal API base URL for gateway proxying",
+        default="http://omnimsgio-api:8000",
+        description="Internal API base URL for gateway proxying (unique DNS; avoid bare api)",
     )
     default_tenant_id: str = Field(
         default="ten_local_dev",
@@ -55,13 +55,56 @@ class Settings(BaseSettings):
         default="",
         description="Meta app secret for X-Hub-Signature-256 (META_APP_SECRET)",
     )
+    meta_app_id: str = Field(
+        default="",
+        description="Meta App ID for Embedded Signup code exchange (META_APP_ID)",
+    )
+    meta_graph_api_version: str = Field(
+        default="v21.0",
+        description="Graph API version for Meta WhatsApp calls (META_GRAPH_API_VERSION)",
+    )
+    sentry_dsn: str = Field(
+        default="",
+        description="Optional Sentry DSN; when set, API captures exceptions (SENTRY_DSN)",
+    )
     rate_limit_per_minute: int = Field(
         default=60,
         ge=1,
         description="Fixed-window API key rate limit (requests per minute)",
     )
+    cors_allowed_origins: str = Field(
+        default="https://app.omnimsg.io,https://omnimsgio-app.localhost",
+        description=(
+            "Comma-separated browser Origins allowed for CORS on the gateway "
+            "(portal Embedded Signup). Env: CORS_ALLOWED_ORIGINS"
+        ),
+    )
     app_version: str = Field(default="0.1.0")
+    app_env: str = Field(
+        default="development",
+        description="Runtime environment label (APP_ENV: development|production|…)",
+    )
+    git_sha: str = Field(
+        default="unknown",
+        description="Build git SHA (GIT_SHA); unknown in local/dev",
+    )
+    build_date: str = Field(
+        default="unknown",
+        description="Image/build date ISO-ish string (BUILD_DATE)",
+    )
+    openapi_contract_path: str = Field(
+        default="",
+        description="Optional absolute path to openapi.yaml (OPENAPI_CONTRACT_PATH)",
+    )
     log_level: str = Field(default="INFO")
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [
+            origin.strip()
+            for origin in self.cors_allowed_origins.split(",")
+            if origin.strip()
+        ]
 
     def _prefixed_key(self, suffix: str) -> str:
         prefix = self.redis_key_prefix

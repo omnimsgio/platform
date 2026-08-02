@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Any
@@ -11,13 +11,23 @@ from typing import Any
 import httpx
 import uvicorn
 from fastapi import FastAPI, Query, Request, Response
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from omnimsg_common.db.models import TenantWhatsappAccount
 from omnimsg_common.db.session import session_scope
 from omnimsg_common.ids import new_id
+from omnimsg_common.openapi_contract import (
+    LoadedOpenAPIContract,
+    OpenAPIContractError,
+    load_openapi_contract,
+    resolve_contract_path,
+)
 from omnimsg_common.queue import create_redis_client, enqueue_json
 from omnimsg_common.settings import get_settings
+from omnimsg_common.whatsapp_lifecycle import messaging_ready_statuses
 from sqlalchemy import select
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from omnimsg_gateway.meta_webhook import (
     classify_webhook_kind,
@@ -34,14 +44,59 @@ HOP_BY_HOP = {"host", "content-length", "transfer-encoding", "connection"}
 STRIP_TRUSTED = {"x-tenant-id", "x-api-key-id"}
 # Keep raw webhook bodies long enough for worker retries / late status processing.
 WEBHOOK_PAYLOAD_TTL_SECONDS = 7 * 24 * 60 * 60
+OPENAPI_CACHE_CONTROL = "public, max-age=300"
+DOCS_CSP = (
+    "default-src 'self'; "
+    "script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; "
+    "style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; "
+    "img-src 'self' data: https://fastapi.tiangolo.com; "
+    "font-src 'self' https://cdn.jsdelivr.net data:; "
+    "connect-src 'self'; "
+    "frame-ancestors 'none'"
+)
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Baseline security headers for the public API edge (ADR-0021)."""
+
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        path = request.url.path
+        if path in {"/docs", "/redoc", "/docs/", "/redoc/"}:
+            response.headers["Content-Security-Policy"] = DOCS_CSP
+        correlation = request.headers.get("x-correlation-id") or getattr(
+            request.state, "correlation_id", None
+        )
+        if correlation and "x-correlation-id" not in {k.lower() for k in response.headers}:
+            response.headers["X-Correlation-Id"] = correlation
+        return response
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
+    try:
+        path = (
+            resolve_contract_path(settings.openapi_contract_path or None)
+            if settings.openapi_contract_path
+            else resolve_contract_path()
+        )
+        contract = load_openapi_contract(path)
+    except OpenAPIContractError:
+        logger.exception("openapi contract load failed; refusing to start")
+        raise
+    app.state.openapi_contract = contract
     timeout = httpx.Timeout(30.0, connect=5.0)
     app.state.http = httpx.AsyncClient(base_url=settings.api_url.rstrip("/"), timeout=timeout)
-    logger.info("gateway ready; proxying to %s", settings.api_url)
+    logger.info(
+        "gateway ready; proxying to %s; contract=%s version=%s",
+        settings.api_url,
+        contract.path,
+        contract.contract_version,
+    )
     try:
         yield
     finally:
@@ -52,7 +107,30 @@ app = FastAPI(
     title="OmniMsg Gateway",
     version="0.1.0",
     lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
+
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Portal (app.omnimsg.io) calls the public API from the browser; without CORS
+# the browser surfaces TypeError "Failed to fetch" on Connect WhatsApp.
+_cors_origins = get_settings().cors_origins_list
+if _cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-Correlation-Id",
+            "X-Idempotency-Key",
+        ],
+        expose_headers=["X-Correlation-Id"],
+    )
 
 
 def _error_response(
@@ -73,7 +151,12 @@ def _error_response(
                 "correlation_id": correlation_id,
             }
         },
+        headers={"X-Correlation-Id": correlation_id},
     )
+
+
+def _contract(request: Request) -> LoadedOpenAPIContract:
+    return request.app.state.openapi_contract
 
 
 def _extract_bearer(request: Request) -> str | None:
@@ -100,11 +183,120 @@ def _check_rate_limit(api_key_id: str) -> bool:
         client.close()
 
 
+@app.get("/")
+async def discovery(request: Request) -> dict[str, str]:
+    """Public discovery document (ADR-0021)."""
+    settings = get_settings()
+    contract = _contract(request)
+    return {
+        "status": "ok",
+        "name": "OmniMsg API",
+        "version": settings.app_version,
+        "environment": settings.app_env,
+        "contract_version": contract.contract_version,
+        "docs": "/docs",
+        "redoc": "/redoc",
+        "openapi": "/openapi.json",
+        "health": "/health",
+        "version_url": "/version",
+    }
+
+
+@app.get("/version")
+async def version(request: Request) -> dict[str, str]:
+    """Build/deploy metadata for ops debugging."""
+    settings = get_settings()
+    contract = _contract(request)
+    return {
+        "version": settings.app_version,
+        "git_sha": settings.git_sha,
+        "build_date": settings.build_date,
+        "environment": settings.app_env,
+        "contract_version": contract.contract_version,
+    }
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
-    """Edge liveness for Traefik / load balancers (public)."""
+    """Edge liveness for Traefik / load balancers (public; no dependency checks)."""
     settings = get_settings()
     return {"status": "ok", "version": settings.app_version}
+
+
+@app.get("/openapi.json")
+async def openapi_json(request: Request) -> Response:
+    """Serve packages/contracts OpenAPI SSOT (never FastAPI runtime schema)."""
+    contract = _contract(request)
+    if_none_match = request.headers.get("if-none-match")
+    if if_none_match and if_none_match.strip() == contract.etag:
+        return Response(
+            status_code=304,
+            headers={
+                "ETag": contract.etag,
+                "Cache-Control": OPENAPI_CACHE_CONTROL,
+            },
+        )
+    return Response(
+        content=contract.json_bytes,
+        media_type="application/json",
+        headers={
+            "ETag": contract.etag,
+            "Cache-Control": OPENAPI_CACHE_CONTROL,
+        },
+    )
+
+
+@app.get("/docs", include_in_schema=False)
+async def swagger_docs() -> HTMLResponse:
+    return get_swagger_ui_html(
+        openapi_url="/openapi.json",
+        title="OmniMsg API · Docs",
+    )
+
+
+@app.get("/redoc", include_in_schema=False)
+async def redoc_docs() -> HTMLResponse:
+    return get_redoc_html(
+        openapi_url="/openapi.json",
+        title="OmniMsg API · ReDoc",
+    )
+
+
+@app.get("/v1/health")
+async def proxy_v1_health(request: Request) -> Response:
+    """Public API readiness probe — no Bearer (ADR-0021)."""
+    correlation_id = request.headers.get("x-correlation-id") or new_id("req")
+    request.state.correlation_id = correlation_id
+    client: httpx.AsyncClient = request.app.state.http
+    headers = {"x-correlation-id": correlation_id}
+    try:
+        upstream = await client.get("/v1/health", headers=headers)
+    except httpx.RequestError as exc:
+        logger.warning("v1 health upstream unreachable: %s", exc)
+        return _error_response(
+            502,
+            code="upstream_failure",
+            message="API upstream unreachable",
+            correlation_id=correlation_id,
+            retryable=True,
+        )
+    return Response(
+        content=upstream.content,
+        status_code=upstream.status_code,
+        headers={
+            key: value
+            for key, value in upstream.headers.items()
+            if key.lower()
+            not in {
+                "content-encoding",
+                "content-length",
+                "transfer-encoding",
+                "connection",
+            }
+        }
+        | {"X-Correlation-Id": correlation_id},
+        media_type=upstream.headers.get("content-type"),
+    )
 
 
 @app.get("/webhooks/meta/whatsapp")
@@ -241,12 +433,13 @@ async def meta_whatsapp_ingest(request: Request) -> Response:
 
 
 def _resolve_whatsapp_tenant(phone_number_id: str) -> str | None:
-    """Look up active tenant for a Meta phone_number_id."""
+    """Look up messaging-ready tenant for a Meta phone_number_id."""
+    ready = messaging_ready_statuses()
     with session_scope() as session:
         row = session.scalars(
             select(TenantWhatsappAccount).where(
                 TenantWhatsappAccount.phone_number_id == phone_number_id,
-                TenantWhatsappAccount.status == "active",
+                TenantWhatsappAccount.status.in_(ready),
             )
         ).first()
         if row is None:

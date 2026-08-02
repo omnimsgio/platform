@@ -10,9 +10,16 @@ WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY packages/common ./packages/common
 COPY packages/providers ./packages/providers
+COPY packages/contracts ./packages/contracts
 COPY apps/gateway ./apps/gateway
 COPY apps/api ./apps/api
 COPY apps/worker ./apps/worker
+
+ARG GIT_SHA=unknown
+ARG BUILD_DATE=unknown
+ENV GIT_SHA=${GIT_SHA} \
+    BUILD_DATE=${BUILD_DATE} \
+    OPENAPI_CONTRACT_PATH=/app/packages/contracts/openapi/openapi.yaml
 
 RUN pip install --no-cache-dir .
 

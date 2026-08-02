@@ -15,6 +15,7 @@ from omnimsg_common.db.session import session_scope
 from omnimsg_common.ids import new_id
 from omnimsg_common.queue import create_redis_client
 from omnimsg_common.settings import get_settings
+from omnimsg_common.whatsapp_lifecycle import READY, bootstrap_ready
 from omnimsg_worker.main import process_inbound_job, process_job
 from sqlalchemy import select
 from whatsapp.meta import MetaWhatsAppProvider
@@ -27,21 +28,22 @@ def _meta_sign(secret: str, body: bytes) -> str:
 
 @pytest.fixture
 def seeded_whatsapp(seeded_tenant: dict[str, str]) -> dict[str, str]:
-    """Attach an active Meta WhatsApp account to the seeded tenant."""
+    """Attach a messaging-ready Meta WhatsApp account to the seeded tenant."""
     account_id = new_id("wa")
     phone_number_id = "pn_test_123"
     with session_scope() as session:
-        session.add(
-            TenantWhatsappAccount(
-                id=account_id,
-                tenant_id=seeded_tenant["tenant_id"],
-                waba_id="waba_test",
-                phone_number_id=phone_number_id,
-                business_access_token="tok_test_business",
-                credit_line_attached=False,
-                status="active",
-            )
+        account = TenantWhatsappAccount(
+            id=account_id,
+            tenant_id=seeded_tenant["tenant_id"],
+            waba_id="waba_test",
+            phone_number_id=phone_number_id,
+            business_access_token="tok_test_business",
+            credit_line_attached=False,
+            status=READY,
+            lifecycle_version=1,
         )
+        session.add(account)
+        bootstrap_ready(account, correlation_id="req_seed_wa")
     return {
         **seeded_tenant,
         "whatsapp_account_id": account_id,

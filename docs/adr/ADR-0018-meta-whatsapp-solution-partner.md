@@ -22,7 +22,7 @@ Implications:
 
 - **Billing:** OmniMsg holds a Meta **credit line**, shares it with onboarded client WABAs, and **invoices clients** for usage + platform. Clients do **not** enter a Meta payment method.
 - **Embedded Signup** (or Hosted ES) onboards client businesses; optional partner-initiated WABA where Meta allows. Code exchange yields **business access tokens** for messaging those WABAs.
-- **App Review (Advanced access)** for `whatsapp_business_management` and `whatsapp_business_messaging` (plus `whatsapp_business_manage_events` only if MM API + CAPI are in scope) is a platform milestone before production traffic.
+- **App Review (Advanced access)** for `whatsapp_business_management` and `whatsapp_business_messaging` is a platform milestone before production traffic. Defer `whatsapp_business_manage_events` (MM API + Conversions API) to the Marketing Domain / v1.x — see [ADR-0019](ADR-0019-marketing-events-attribution.md); it is not a v1 App Review blocker.
 - **One Meta app** and **one webhook callback URL** (verify + signature at `apps/gateway`); subscribe WABAs and register phones after ES.
 - **System user token** with **Finance editor** role for credit-line sharing; **business tokens** from ES for day-to-day Cloud API send/receive on client WABAs.
 - **Multi-tenant config** stores per-tenant WABA id, phone_number_id, business access token, and credit-line attached flag (ADR-0007, ADR-0004).

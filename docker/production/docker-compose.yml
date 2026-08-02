@@ -1,0 +1,110 @@
+# OmniMsg production apps only — Postgres / Redis / Traefik come from shared /opt/stacks.
+# Target: dedicated-hel1 (Traefik on `proxy`, PostGIS on `postgis`, Redis on `hetzner_net`).
+#
+# From repo root on the server:
+#   docker compose -f docker/production/docker-compose.yml --env-file .env up -d --build
+#
+# Public Hosts (TLS via Traefik certificatesresolver `lecf` / Cloudflare DNS-01):
+#   api.omnimsg.io  → gateway
+#   omnimsg.io / www.omnimsg.io / app.omnimsg.io → web (Next.js)
+# Meta webhook: https://api.omnimsg.io/webhooks/meta/whatsapp
+
+name: omnimsgio
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: docker/production/Dockerfile
+    image: omnimsgio-apps:prod
+    container_name: omnimsgio-api
+    command: ["omnimsg-api"]
+    env_file:
+      - ../../.env
+    networks:
+      - proxy
+      - postgis
+      - hetzner_net
+    restart: unless-stopped
+
+  gateway:
+    image: omnimsgio-apps:prod
+    pull_policy: never
+    container_name: omnimsgio-gateway
+    command: ["omnimsg-gateway"]
+    env_file:
+      - ../../.env
+    environment:
+      # Use unique DNS name — shared Docker networks often have multiple `api` aliases.
+      API_URL: http://omnimsgio-api:8000
+    depends_on:
+      - api
+    networks:
+      - proxy
+      - postgis
+      - hetzner_net
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.omnimsgio-api.rule=Host(`api.omnimsg.io`)
+      - traefik.http.routers.omnimsgio-api.entrypoints=websecure
+      - traefik.http.routers.omnimsgio-api.tls=true
+      - traefik.http.routers.omnimsgio-api.tls.certresolver=lecf
+      - traefik.http.routers.omnimsgio-api.service=omnimsgio-api
+      - traefik.http.services.omnimsgio-api.loadbalancer.server.port=8000
+    restart: unless-stopped
+
+  worker:
+    image: omnimsgio-apps:prod
+    pull_policy: never
+    container_name: omnimsgio-worker
+    command: ["omnimsg-worker"]
+    env_file:
+      - ../../.env
+    depends_on:
+      - api
+    networks:
+      - proxy
+      - postgis
+      - hetzner_net
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ../../apps/web
+      dockerfile: Dockerfile
+    image: omnimsgio-web:prod
+    container_name: omnimsgio-web
+    env_file:
+      - ../../.env
+    environment:
+      FEATURE_EMBEDDED_SIGNUP: ${FEATURE_EMBEDDED_SIGNUP:-false}
+      WHATSAPP_ES_FEATURE_TYPE: ${WHATSAPP_ES_FEATURE_TYPE:-}
+      META_APP_ID: ${META_APP_ID:-}
+      META_ES_CONFIG_ID: ${META_ES_CONFIG_ID:-893783150448062}
+      API_BASE_URL: ${API_BASE_URL:-https://api.omnimsg.io}
+    networks:
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.omnimsgio-www.rule=Host(`omnimsg.io`) || Host(`www.omnimsg.io`)
+      - traefik.http.routers.omnimsgio-www.entrypoints=websecure
+      - traefik.http.routers.omnimsgio-www.tls=true
+      - traefik.http.routers.omnimsgio-www.tls.certresolver=lecf
+      - traefik.http.routers.omnimsgio-www.service=omnimsgio-web
+      - traefik.http.routers.omnimsgio-app.rule=Host(`app.omnimsg.io`)
+      - traefik.http.routers.omnimsgio-app.entrypoints=websecure
+      - traefik.http.routers.omnimsgio-app.tls=true
+      - traefik.http.routers.omnimsgio-app.tls.certresolver=lecf
+      - traefik.http.routers.omnimsgio-app.service=omnimsgio-web
+      - traefik.http.services.omnimsgio-web.loadbalancer.server.port=3000
+    restart: unless-stopped
+
+networks:
+  proxy:
+    external: true
+  postgis:
+    external: true
+  hetzner_net:
+    external: true

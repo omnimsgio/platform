@@ -205,24 +205,25 @@ Out of scope forever under ADR-0019: campaign management, audience creation, ad 
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Repository skeleton | Done | Apps, packages, infrastructure, docs layout |
-| ADRs (0001–0020) | Done | Stack (0016); SP path (0018); Marketing Domain (0019); WA lifecycle (0020) |
+| ADRs (0001–0021) | Done | Stack (0016); SP path (0018); Marketing Domain (0019); WA lifecycle (0020); Public API surface (0021) |
 | Product positioning | Done | omnimsg.io, FinestAR, Solution Partner GTM |
 | NORTH_STAR | Done | This document |
-| OpenAPI contracts | Done | `/v1/health`, `/v1/messages`, `GET /v1/messages/{id}`, Bearer security |
+| OpenAPI contracts | Done | Contract SSOT + edge `/openapi.json` / `/docs` / `/redoc`; `x-contract-version` `1.0.0`; readiness `/v1/health` |
+| Public API surface (ADR-0021) | **Done (production)** | 2026-08-02 on `api.omnimsg.io`; baseline tag `cpaas-openapi-surface-v1`; [evidence](runbooks/production-openapi-surface-evidence-2026-08-02.md) |
 | Event contracts | Done | `message.queued.v1`, `message.delivery_updated.v1`, `webhook.inbound.received.v1` |
-| apps/gateway | Done | Bearer API-key auth, Redis rate limit, proxy + public `/health`; Meta webhook hub verify + HMAC ingest → inbound queue |
-| apps/api | Done | Persist + idempotency, internal auth resolve, ADR-0015 validation |
+| apps/gateway | Done | Bearer auth, rate limit, Meta webhooks; public discovery `/`, `/version`, `/health`, contract docs; fail-fast OpenAPI load |
+| apps/api | Done | Persist + idempotency, internal auth resolve, ADR-0015 validation; `/v1/health` readiness (DB+Redis) |
 | Schema / migrations | Done | Alembic: `tenants`, `api_keys`, `messages`, `tenant_whatsapp_accounts`; local seed script |
 | Execution Engine | In progress | Worker outbound Meta WhatsApp + inbound status; provider ABC/stub for other channels |
 | apps/worker | Done | Outbound WhatsApp via Cloud API; inbound `message_status` → status + `message.delivery_updated.v1` |
 | packages/providers/whatsapp | Done | Meta Cloud API adapter (`whatsapp.meta`); Graph send + error mapping |
 | packages/providers/sms, email, rcs, push | Not started | Future channels |
-| packages/sdk-* | Not started | Post-OpenAPI stabilization |
+| packages/sdk-* | Not started | Unblocked by OpenAPI surface stabilization (`cpaas-openapi-surface-v1`) |
 | apps/portal | Not started | Placeholder; public shell lives in `apps/web` until ES / auth |
 | apps/web | Done | Next.js promo (`omnimsg.io` / `www`) + portal shell (`app.omnimsg.io`); no auth |
 | Docker Compose (local dev) | Done | App-only Compose on shared Traefik / Postgres / Redis |
 | infrastructure/observability | Not started | Metrics, tracing, dashboards |
-| CI workflows | Done | Ruff, migrations, Postgres/Redis pytest, OpenAPI presence |
+| CI workflows | Done | Ruff, migrations, pytest; OpenAPI lint (`openapi-spec-validator`), path/method parity, runtime docs smoke |
 | Meta Solution Partner / App Review / credit line | In progress | SP/MBP kickoff 2026-07-20; live tracker `/opt/stacks/ops/omnimsgio-meta-sp-kickoff.md`; App Review + credit line still pending; see [runbook](providers/meta-whatsapp-solution-partner.md) |
 | Meta Embedded Signup | Done (P1) | start/complete + lifecycle → `PHONE_PENDING`; portal reads connection status |
 | Tenant WhatsApp Connection Lifecycle | **Feature Complete (v1 frozen)** | ADR-0020 SSOT; Compatibility Promise; [v1 release checklist](adr/ADR-0020-lifecycle-v1-release-checklist.md); no v1 status changes in P3+ |
@@ -233,7 +234,7 @@ Out of scope forever under ADR-0019: campaign management, audience creation, ad 
 
 ### CPaaS Foundation (complete)
 
-Platform baselines (do not retag/move): `cpaas-lifecycle-v1`, `cpaas-inbound-persistence-v1`.
+Platform baselines (do not retag/move): `cpaas-lifecycle-v1`, `cpaas-inbound-persistence-v1`, `cpaas-openapi-surface-v1`.
 
 | Priority | Work | Notes |
 |----------|------|-------|

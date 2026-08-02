@@ -25,7 +25,7 @@ Solution Partner / Meta Business Partner approval (credit line, Direct Support) 
 |------|--------|----------|
 | §1 MBP / Solution Partner application | **Blocked** (2026-07-20) — public MBP form: no eligible Business Manager; need WhatsApp SP / credit-line channel | Live tracker **outside this repo**: `/opt/stacks/ops/omnimsgio-meta-sp-kickoff.md` |
 | §2 Development assets (portfolio, Business app, System User, test phone) | **In progress** — provision in parallel; fill IDs in the tracker | Same file |
-| §3 `META_VERIFY_TOKEN` / `META_APP_SECRET` | Verify token prepared in local `.env`; App Secret still from Meta Dashboard | [.env.example](../../.env.example) |
+| §3 `META_VERIFY_TOKEN` / `META_APP_SECRET` | **Done** (2026-07-20) — secrets in prod `.env`; Meta webhook Verify and save + `messages` + test WABA subscribed; callback `https://api.omnimsg.io/webhooks/meta/whatsapp` | Live tracker: `/opt/stacks/ops/omnimsgio-meta-sp-kickoff.md`; [production gateway](../runbooks/production-gateway.md) |
 
 Engineering does **not** block on SP approval. Update the out-of-repo tracker weekly until credit line is live.
 
@@ -64,7 +64,7 @@ Request Advanced access for:
 
 - `whatsapp_business_management`
 - `whatsapp_business_messaging`
-- `whatsapp_business_manage_events` — **only** if Marketing Messages API + Conversions API are in scope
+- `whatsapp_business_manage_events` — **deferred to v1.x** (Marketing Messages API + Conversions API). Do not request for v1 App Review; see [ADR-0019](../adr/ADR-0019-marketing-events-attribution.md). CTWA / ad **ConversationReferral** capture (including `ctwa_clid` + `raw_payload`) is a v1 Conversation Domain concern when inbound messages are persisted — not an App Review permission.
 
 Complete App Review before production client traffic.
 
@@ -84,6 +84,7 @@ Do not use the Finance-editor system token as the day-to-day messaging credentia
 ### 6. Webhook and phone registration
 
 1. Configure **one webhook callback URL** on the Meta app (OmniMsg: `apps/gateway` — verify challenge + app secret signature).
+   - Production: `https://api.omnimsg.io/webhooks/meta/whatsapp` — verify token = `META_VERIFY_TOKEN` on dedicated-hel1 (see [production gateway runbook](../runbooks/production-gateway.md)).
 2. After Embedded Signup: **subscribe** the client WABA to the app webhook.
 3. **Register** the business phone (PIN / 2FA). Meta expects registration within **14 days** after ES.
 
@@ -95,11 +96,28 @@ Do not use the Finance-editor system token as the day-to-day messaging credentia
 
 ## Onboarding flow (happy path)
 
-1. Client completes Embedded Signup (or Hosted ES) via portal / API.
-2. Exchange auth code → store **business access token**, WABA id, `phone_number_id`.
-3. Subscribe WABA to webhook; register phone within 14 days.
-4. Attach credit line; set tenant credit-line flag.
+Canonical tenant WhatsApp state is the **connection lifecycle** ([ADR-0020](../adr/ADR-0020-tenant-whatsapp-connection-lifecycle.md)). Messaging is allowed only when status is messaging-ready (`READY`).
+
+1. Client starts Embedded Signup → `EMBEDDED_SIGNUP_STARTED`.
+2. Complete ES: exchange auth code → store **business access token**, WABA id, `phone_number_id` → `BUSINESS_CONNECTED` → `PHONE_PENDING`.
+3. P2: register phone (within 14 days) → subscribe/verify webhook → health → `READY`.
+4. Attach credit line; set tenant credit-line flag (orthogonal to lifecycle; SP-dependent).
 5. Messaging and delivery webhooks flow: Meta → gateway → events → worker / execution engine.
+
+Revoke / removed app / deleted phone → `DISCONNECTED` (reconnect via ES only). Provisioning failures → `ERROR` with `recovery_target`.
+
+### `READY` / `health_ok` (P2 gate)
+
+Lifecycle may enter `READY` only when **all** hold (see [ADR-0020](../adr/ADR-0020-tenant-whatsapp-connection-lifecycle.md)):
+
+1. Valid business access token  
+2. `waba_id` present  
+3. `phone_number_id` present  
+4. Phone registered (Cloud API register / PIN as required)  
+5. Webhook verified (WABA subscribed + verify checks)  
+6. Graph health check passes (WABA + phone usable)
+
+`credit_line_attached` is **not** part of `health_ok`.
 
 ## Technical milestones (engineering backlog)
 
@@ -116,5 +134,8 @@ Not implemented in the foundation pivot — align with **api** / **channels** / 
 ## Related
 
 - [ADR-0018](../adr/ADR-0018-meta-whatsapp-solution-partner.md)
+- [ADR-0019](../adr/ADR-0019-marketing-events-attribution.md) — Marketing Domain; defer `whatsapp_business_manage_events`
+- [ADR-0020](../adr/ADR-0020-tenant-whatsapp-connection-lifecycle.md) — Tenant WhatsApp Connection Lifecycle
 - [ADR-0017](../adr/ADR-0017-meta-whatsapp-tech-provider.md) (superseded)
 - [North Star — SP milestones](../NORTH_STAR.md#solution-partner-technical-milestones)
+- [North Star — Marketing & Attribution](../NORTH_STAR.md#marketing--attribution-backlog)

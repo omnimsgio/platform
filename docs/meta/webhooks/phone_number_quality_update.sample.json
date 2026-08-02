@@ -1,0 +1,16 @@
+{
+  "tested_at": "2026-08-02T18:41:14+02:00",
+  "field": "phone_number_quality_update",
+  "version": "v26.0",
+  "dashboard_result": "Successfully tested",
+  "sample": {
+    "field": "phone_number_quality_update",
+    "value": {
+      "display_phone_number": "16505551111",
+      "event": "ONBOARDING",
+      "current_limit": "TIER_250",
+      "old_limit": "TIER_NOT_SET",
+      "max_daily_conversations_per_business": "TIER_250"
+    }
+  }
+}

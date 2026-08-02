@@ -53,13 +53,37 @@ def test_gateway_health() -> None:
     assert "version" in body
 
 
+def test_gateway_cors_preflight_for_portal() -> None:
+    """Browser Connect WhatsApp sends OPTIONS; must not require Bearer."""
+    from omnimsg_gateway.main import app
+
+    with TestClient(app) as client:
+        response = client.options(
+            "/v1/whatsapp/embedded-signup/start",
+            headers={
+                "Origin": "https://app.omnimsg.io",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "authorization,content-type",
+            },
+        )
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == "https://app.omnimsg.io"
+    allow_headers = (response.headers.get("access-control-allow-headers") or "").lower()
+    assert "authorization" in allow_headers
+
+
 def test_api_health() -> None:
     from omnimsg_api.main import app
 
     client = TestClient(app)
     response = client.get("/v1/health")
-    assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    assert response.status_code in {200, 503}
+    body = response.json()
+    assert body["status"] in {"ok", "degraded", "error"}
+    assert "version" in body
+    assert "checks" in body
+    assert "database" in body["checks"]
+    assert "redis" in body["checks"]
 
 
 def test_api_rejects_missing_tenant_header() -> None:

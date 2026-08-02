@@ -31,6 +31,7 @@ Product context: [omnimsg.io](https://omnimsg.io) · [FinestAR](https://finestar
 | [ADR-0019](ADR-0019-marketing-events-attribution.md) | Marketing Domain and Attribution Events *(Architecture Locked; Conversation feature frozen)* |
 | [ADR-0020](ADR-0020-tenant-whatsapp-connection-lifecycle.md) | Tenant WhatsApp Connection Lifecycle *(Architecture Locked; Provisioning Lifecycle v1 Feature Complete / frozen)* |
 | [ADR-0020 checklist](ADR-0020-lifecycle-v1-release-checklist.md) | Provisioning Lifecycle v1 release checklist *(governance closeout; companion to ADR-0020)* |
+| [ADR-0021](ADR-0021-public-api-surface.md) | Public API Surface (`api.omnimsg.io`) |
 
 ## Template
 

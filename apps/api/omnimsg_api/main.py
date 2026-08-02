@@ -12,12 +12,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from omnimsg_common.auth import hash_api_key, looks_like_api_key
 from omnimsg_common.db.models import ApiKey, Conversation, Message, Tenant
-from omnimsg_common.db.session import session_scope
+from omnimsg_common.db.session import get_engine, session_scope
 from omnimsg_common.ids import new_id
 from omnimsg_common.queue import create_redis_client, enqueue_json
 from omnimsg_common.settings import Settings, get_settings
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 
 from omnimsg_api.embedded_signup import (
@@ -38,7 +38,13 @@ from omnimsg_api.whatsapp_health import HealthService
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="OmniMsg API", version="0.1.0")
+app = FastAPI(
+    title="OmniMsg API",
+    version="0.1.0",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+)
 
 TENANT_HEADER = "X-Tenant-Id"
 API_KEY_ID_HEADER = "X-Api-Key-Id"
@@ -287,10 +293,59 @@ def _full_message_response(row: Message) -> MessageResponse:
     )
 
 
-@app.get("/v1/health")
-async def health() -> dict[str, str]:
+class ReadinessChecks(BaseModel):
+    database: bool
+    redis: bool
+    worker: bool | None = None
+    provider: bool | None = None
+
+
+class ApiHealthResponse(BaseModel):
+    status: Literal["ok", "degraded", "error"]
+    version: str
+    checks: ReadinessChecks
+
+
+@app.get("/v1/health", response_model=ApiHealthResponse)
+async def health() -> JSONResponse:
+    """API readiness: database + redis required (ADR-0021)."""
     settings = get_settings()
-    return {"status": "ok", "version": settings.app_version}
+    database_ok = False
+    redis_ok = False
+    try:
+        with get_engine(settings).connect() as conn:
+            conn.execute(text("SELECT 1"))
+        database_ok = True
+    except Exception:  # noqa: BLE001 — readiness must not raise
+        logger.warning("v1 health database check failed", exc_info=True)
+
+    try:
+        client = create_redis_client(settings)
+        try:
+            redis_ok = bool(client.ping())
+        finally:
+            client.close()
+    except Exception:  # noqa: BLE001
+        logger.warning("v1 health redis check failed", exc_info=True)
+
+    checks = ReadinessChecks(
+        database=database_ok,
+        redis=redis_ok,
+        worker=None,
+        provider=None,
+    )
+    if database_ok and redis_ok:
+        status: Literal["ok", "degraded", "error"] = "ok"
+        code = 200
+    else:
+        status = "error"
+        code = 503
+    body = ApiHealthResponse(
+        status=status,
+        version=settings.app_version,
+        checks=checks,
+    )
+    return JSONResponse(status_code=code, content=body.model_dump(mode="json"))
 
 
 @app.post("/internal/v1/auth/resolve", response_model=ResolveAuthResponse)

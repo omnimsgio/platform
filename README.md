@@ -55,6 +55,10 @@ docker compose -f docker/development/docker-compose.yml --env-file .env up -d --
 
 Gateway is published via Traefik Host `omnimsgio.localhost` (entrypoints `web` / `websecure`, service port `8000`).
 
+### Production
+
+On **dedicated-hel1**, use [`docker/production/docker-compose.yml`](docker/production/docker-compose.yml) — Traefik `Host(\`api.omnimsg.io\`)` for the gateway, plus `omnimsg.io` / `www.omnimsg.io` / `app.omnimsg.io` for Next.js (`apps/web`), `websecure`, `tls.certresolver=lecf`. See [production gateway](docs/runbooks/production-gateway.md) and [production web](docs/runbooks/production-web.md) runbooks. Public API surface (`/`, `/docs`, `/openapi.json`, `/v1/*`) is defined in [ADR-0021](docs/adr/ADR-0021-public-api-surface.md).
+
 ```bash
 # Ensure Host resolves (RFC 6761 .localhost → 127.0.0.1; use --resolve if needed)
 curl -fsS --resolve omnimsgio.localhost:80:127.0.0.1 http://omnimsgio.localhost/health

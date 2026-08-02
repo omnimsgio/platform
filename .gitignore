@@ -216,3 +216,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local scratch / uncommitted assets
+.temp/
+
+# Node (apps/web also has its own .gitignore)
+node_modules/
+apps/web/.next/
+apps/web/out/
+.env.bak*

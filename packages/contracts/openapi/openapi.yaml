@@ -2,12 +2,17 @@ openapi: 3.1.0
 info:
   title: OmniMsg API
   version: 1.0.0
+  x-contract-version: "1.0.0"
   description: |
     Public HTTP API for OmniMsg (omnimsg.io).
 
     Contract-first foundation seed (ADR-0005). Breaking changes require a new
     major path version (ADR-0010). Errors follow the uniform error model (ADR-0015).
     Authentication uses Bearer API keys at the gateway (ADR-0012).
+    Public edge surface is defined in ADR-0021.
+
+    Clients may send `X-Correlation-Id`; error bodies always include
+    `error.correlation_id` and the gateway echoes the header when present.
   contact:
     name: FinestAR
     url: https://finestar.hr/
@@ -18,7 +23,9 @@ servers:
     description: Local development (via Traefik → gateway)
 tags:
   - name: Health
-    description: Service health probes
+    description: |
+      Edge liveness is `GET /health` on the gateway (not in this contract).
+      `GET /v1/health` is API readiness (database + redis).
   - name: Messages
     description: Outbound message commands
   - name: WhatsApp
@@ -30,12 +37,18 @@ paths:
     get:
       operationId: getHealth
       tags: [Health]
-      summary: Health check
-      description: Returns service liveness for load balancers and probes.
+      summary: API readiness
+      description: |
+        Returns API readiness for the authenticated surface without requiring a
+        Bearer token. Checks `database` and `redis`. Reserved keys `worker` and
+        `provider` may be null until implemented (ADR-0021).
+        HTTP 200 when required checks pass; HTTP 503 when `status` is `error`.
       security: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
       responses:
         "200":
-          description: Service is healthy
+          description: Required dependencies are healthy
           content:
             application/json:
               schema:
@@ -43,6 +56,15 @@ paths:
               examples:
                 ok:
                   $ref: "#/components/examples/HealthOk"
+        "503":
+          description: One or more required dependency checks failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              examples:
+                error:
+                  $ref: "#/components/examples/HealthError"
         default:
           $ref: "#/components/responses/Error"
 
@@ -374,6 +396,18 @@ components:
         never send client-supplied tenant headers.
 
   parameters:
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      description: |
+        Optional client correlation id. Echoed on responses when provided;
+        otherwise the platform generates one. Always present as
+        `error.correlation_id` on error bodies (ADR-0015).
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -387,6 +421,11 @@ components:
   responses:
     Error:
       description: Uniform platform error (ADR-0015)
+      headers:
+        X-Correlation-Id:
+          description: Echo of request correlation id (generated if omitted)
+          schema:
+            type: string
       content:
         application/json:
           schema:
@@ -396,17 +435,42 @@ components:
               $ref: "#/components/examples/ErrorValidation"
 
   schemas:
+    HealthChecks:
+      type: object
+      additionalProperties: false
+      required: [database, redis]
+      properties:
+        database:
+          type: boolean
+          description: Postgres connectivity (`SELECT 1`)
+        redis:
+          type: boolean
+          description: Redis PING
+        worker:
+          type: boolean
+          nullable: true
+          description: Reserved; null until worker connectivity is wired
+        provider:
+          type: boolean
+          nullable: true
+          description: Reserved; null until provider readiness is wired
+
     HealthResponse:
       type: object
       additionalProperties: false
-      required: [status]
+      required: [status, version, checks]
       properties:
         status:
           type: string
-          enum: [ok]
+          enum: [ok, degraded, error]
+          description: |
+            `ok` when required checks pass; `error` when database or redis fails;
+            `degraded` reserved for partial optional failures.
         version:
           type: string
-          description: Optional build or API version string
+          description: API/build version string
+        checks:
+          $ref: "#/components/schemas/HealthChecks"
 
     CreateMessageRequest:
       type: object
@@ -918,10 +982,25 @@ components:
 
   examples:
     HealthOk:
-      summary: Healthy service
+      summary: Required dependencies healthy
       value:
         status: ok
-        version: "1.0.0"
+        version: "0.1.0"
+        checks:
+          database: true
+          redis: true
+          worker: null
+          provider: null
+    HealthError:
+      summary: Required dependency failed
+      value:
+        status: error
+        version: "0.1.0"
+        checks:
+          database: false
+          redis: true
+          worker: null
+          provider: null
     CreateMessageText:
       summary: Queue a WhatsApp text message
       value:

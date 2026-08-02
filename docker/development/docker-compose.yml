@@ -33,7 +33,8 @@ services:
     env_file:
       - ../../.env
     environment:
-      API_URL: http://api:8000
+      # Unique compose DNS name (avoid colliding `api` aliases on shared networks).
+      API_URL: http://omnimsgio-api:8000
     depends_on:
       - api
     networks:
@@ -68,6 +69,42 @@ services:
       - proxy
       - data_default
       - redis_default
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ../../apps/web
+      dockerfile: Dockerfile
+    image: omnimsgio-web:local
+    container_name: omnimsgio-web
+    env_file:
+      - ../../.env
+    environment:
+      FEATURE_EMBEDDED_SIGNUP: ${FEATURE_EMBEDDED_SIGNUP:-false}
+      WHATSAPP_ES_FEATURE_TYPE: ${WHATSAPP_ES_FEATURE_TYPE:-}
+      META_APP_ID: ${META_APP_ID:-}
+      META_ES_CONFIG_ID: ${META_ES_CONFIG_ID:-893783150448062}
+      API_BASE_URL: ${API_BASE_URL:-https://omnimsgio.localhost}
+    networks:
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.omnimsgio-www.rule=Host(`omnimsgio-web.localhost`)
+      - traefik.http.routers.omnimsgio-www.entrypoints=web
+      - traefik.http.routers.omnimsgio-www.service=omnimsgio-web
+      - traefik.http.routers.omnimsgio-www-secure.rule=Host(`omnimsgio-web.localhost`)
+      - traefik.http.routers.omnimsgio-www-secure.entrypoints=websecure
+      - traefik.http.routers.omnimsgio-www-secure.tls=true
+      - traefik.http.routers.omnimsgio-www-secure.service=omnimsgio-web
+      - traefik.http.routers.omnimsgio-app.rule=Host(`omnimsgio-app.localhost`)
+      - traefik.http.routers.omnimsgio-app.entrypoints=web
+      - traefik.http.routers.omnimsgio-app.service=omnimsgio-web
+      - traefik.http.routers.omnimsgio-app-secure.rule=Host(`omnimsgio-app.localhost`)
+      - traefik.http.routers.omnimsgio-app-secure.entrypoints=websecure
+      - traefik.http.routers.omnimsgio-app-secure.tls=true
+      - traefik.http.routers.omnimsgio-app-secure.service=omnimsgio-web
+      - traefik.http.services.omnimsgio-web.loadbalancer.server.port=3000
     restart: unless-stopped
 
 networks:
