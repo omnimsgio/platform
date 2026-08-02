@@ -21,11 +21,13 @@ from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 
+from omnimsg_api.admin import record_admin_audit
 from omnimsg_api.embedded_signup import (
     EmbeddedSignupAttachError,
     EmbeddedSignupConfigError,
     EmbeddedSignupConflictError,
     EmbeddedSignupService,
+    EmbeddedSignupStateError,
 )
 from omnimsg_api.provisioning import (
     ProvisioningConflictError,
@@ -123,6 +125,7 @@ class EmbeddedSignupCompleteRequest(BaseModel):
     waba_id: str = Field(min_length=1, max_length=64)
     phone_number_id: str = Field(min_length=1, max_length=64)
     meta_business_id: str | None = Field(default=None, max_length=64)
+    state: str | None = Field(default=None, max_length=128)
 
 
 class EmbeddedSignupCompleteResponse(BaseModel):
@@ -143,6 +146,7 @@ class EmbeddedSignupStartResponse(BaseModel):
     status: str
     correlation_id: str
     already_started: bool
+    state: str
 
 
 class HealthChecks(BaseModel):
@@ -671,12 +675,25 @@ async def start_embedded_signup(
         tenant_id=tenant_id,
         correlation_id=correlation_id,
     )
+    record_admin_audit(
+        actor=f"tenant:{tenant_id}",
+        action="embedded_signup_started",
+        entity_type="tenant_whatsapp_account",
+        entity_id=result.account_id,
+        before=None,
+        after={"status": result.status, "already_started": result.already_started},
+        correlation_id=correlation_id,
+        request_id=correlation_id,
+        request_ip=None,
+        user_agent=None,
+    )
     return EmbeddedSignupStartResponse(
         account_id=result.account_id,
         tenant_id=result.tenant_id,
         status=result.status,
         correlation_id=result.correlation_id,
         already_started=result.already_started,
+        state=result.state,
     )
 
 
@@ -864,6 +881,20 @@ async def whatsapp_health_check(
             correlation_id=exc.correlation_id,
         ) from exc
 
+    if result.status == "READY" and not result.already_healthy:
+        record_admin_audit(
+            actor=f"tenant:{tenant_id}",
+            action="lifecycle_ready",
+            entity_type="tenant_whatsapp_account",
+            entity_id=result.account_id,
+            before={"status": "HEALTH_CHECK_PENDING"},
+            after={"status": "READY", "checks": result.checks},
+            correlation_id=correlation_id,
+            request_id=correlation_id,
+            request_ip=None,
+            user_agent=None,
+        )
+
     return HealthCheckResponse(
         status=result.status,
         status_reason=result.status_reason,
@@ -967,8 +998,16 @@ async def complete_embedded_signup(
             waba_id=payload.waba_id,
             phone_number_id=payload.phone_number_id,
             meta_business_id=payload.meta_business_id,
+            state=payload.state,
             correlation_id=correlation_id,
         )
+    except EmbeddedSignupStateError as exc:
+        raise _error(
+            400,
+            code="invalid_es_state",
+            message=str(exc),
+            correlation_id=exc.correlation_id,
+        ) from exc
     except EmbeddedSignupConflictError as exc:
         raise _error(
             409,
@@ -993,6 +1032,23 @@ async def complete_embedded_signup(
             retryable=True,
         ) from exc
 
+    record_admin_audit(
+        actor=f"tenant:{tenant_id}",
+        action="embedded_signup_completed",
+        entity_type="tenant_whatsapp_account",
+        entity_id=result.account_id,
+        before=None,
+        after={
+            "status": result.status,
+            "waba_id": result.waba_id,
+            "phone_number_id": result.phone_number_id,
+            "already_attached": result.already_attached,
+        },
+        correlation_id=correlation_id,
+        request_id=correlation_id,
+        request_ip=None,
+        user_agent=None,
+    )
     return EmbeddedSignupCompleteResponse(
         account_id=result.account_id,
         tenant_id=result.tenant_id,

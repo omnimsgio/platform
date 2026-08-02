@@ -16,12 +16,21 @@ from sqlalchemy.exc import OperationalError
 
 
 def pytest_configure() -> None:
-    # Prefer CI/local service defaults when unset.
-    os.environ.setdefault(
-        "DATABASE_URL",
-        "postgresql://omnimsgio:omnimsgio@localhost:5432/omnimsgio",
-    )
-    os.environ.setdefault("REDIS_URL", "redis://localhost:6379/3")
+    # Prefer CI/local service defaults when unset / when Compose hostnames
+    # are not resolvable on the host runner.
+    db_url = os.environ.get("DATABASE_URL", "")
+    if "@postgis" in db_url:
+        os.environ["DATABASE_URL"] = db_url.replace("@postgis", "@127.0.0.1")
+    else:
+        os.environ.setdefault(
+            "DATABASE_URL",
+            "postgresql://omnimsgio:omnimsgio@127.0.0.1:5432/omnimsgio",
+        )
+    redis_url = os.environ.get("REDIS_URL", "")
+    if "infra-redis" in redis_url:
+        os.environ["REDIS_URL"] = redis_url.replace("infra-redis", "127.0.0.1")
+    else:
+        os.environ.setdefault("REDIS_URL", "redis://127.0.0.1:6379/3")
     os.environ.setdefault("REDIS_KEY_PREFIX", "omnimsgio:")
     os.environ.setdefault("RATE_LIMIT_PER_MINUTE", "60")
     get_settings.cache_clear()

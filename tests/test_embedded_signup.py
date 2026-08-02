@@ -25,6 +25,7 @@ from whatsapp.embedded_signup import MetaGraphError
 def es_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("META_APP_ID", "app_test_123")
     monkeypatch.setenv("META_APP_SECRET", "secret_test")
+    monkeypatch.setenv("REDIS_URL", "redis://127.0.0.1:6379/3")
     get_settings.cache_clear()
 
 
@@ -62,6 +63,15 @@ def _complete(
     phone_number_id: str = "pn_es_1",
     correlation_id: str = "req_es_test",
 ) -> Any:
+    headers = {
+        "X-Tenant-Id": seeded_tenant["tenant_id"],
+        "X-Api-Key-Id": seeded_tenant["api_key_id"],
+        "X-Correlation-Id": correlation_id,
+    }
+    started = client.post("/v1/whatsapp/embedded-signup/start", headers=headers)
+    assert started.status_code == 200
+    state = started.json()["state"]
+    assert state
     return client.post(
         "/v1/whatsapp/embedded-signup/complete",
         json={
@@ -69,12 +79,9 @@ def _complete(
             "waba_id": "waba_es_1",
             "phone_number_id": phone_number_id,
             "meta_business_id": "bm_es_1",
+            "state": state,
         },
-        headers={
-            "X-Tenant-Id": seeded_tenant["tenant_id"],
-            "X-Api-Key-Id": seeded_tenant["api_key_id"],
-            "X-Correlation-Id": correlation_id,
-        },
+        headers=headers,
     )
 
 
@@ -100,6 +107,7 @@ def test_es_start_and_connection_status(
     body = started.json()
     assert body["status"] == "EMBEDDED_SIGNUP_STARTED"
     assert body["already_started"] is False
+    assert body["state"]
 
     after = client.get("/v1/whatsapp/connection", headers=headers)
     assert after.status_code == 200
@@ -231,6 +239,41 @@ def test_es_complete_conflict_other_tenant(
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "conflict"
     assert response.json()["error"]["correlation_id"] == "req_es_test"
+    assert mock.exchange_code.call_count == 0
+
+
+def test_es_complete_rejects_bad_state(
+    seeded_tenant: dict[str, str],
+    es_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from omnimsg_api.main import app
+
+    del es_env
+    mock = _mock_client()
+    monkeypatch.setattr(
+        "omnimsg_api.embedded_signup.MetaEmbeddedSignupClient",
+        lambda **_kwargs: mock,
+    )
+    client = TestClient(app)
+    headers = {
+        "X-Tenant-Id": seeded_tenant["tenant_id"],
+        "X-Api-Key-Id": seeded_tenant["api_key_id"],
+        "X-Correlation-Id": "req_bad_state",
+    }
+    assert client.post("/v1/whatsapp/embedded-signup/start", headers=headers).status_code == 200
+    response = client.post(
+        "/v1/whatsapp/embedded-signup/complete",
+        json={
+            "code": "AQ_test",
+            "waba_id": "waba_1",
+            "phone_number_id": "pn_1",
+            "state": "not-the-real-nonce",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "invalid_es_state"
     assert mock.exchange_code.call_count == 0
 
 

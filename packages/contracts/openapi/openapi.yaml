@@ -686,6 +686,12 @@ components:
           type: string
           description: Optional client Business Manager id from ES session
           maxLength: 64
+        state:
+          type: string
+          description: |
+            Opaque nonce from `startWhatsappEmbeddedSignup` (Redis-backed).
+            Required for complete; mismatch or expiry returns 400.
+          maxLength: 128
 
     EmbeddedSignupCompleteResponse:
       type: object
@@ -727,7 +733,7 @@ components:
     EmbeddedSignupStartResponse:
       type: object
       additionalProperties: false
-      required: [account_id, tenant_id, status, correlation_id, already_started]
+      required: [account_id, tenant_id, status, correlation_id, already_started, state]
       properties:
         account_id:
           type: string
@@ -741,6 +747,9 @@ components:
           type: string
         already_started:
           type: boolean
+        state:
+          type: string
+          description: Opaque Redis-backed nonce; pass to complete
 
     WhatsappConnectionResponse:
       type: object

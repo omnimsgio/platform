@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hmac
 import logging
+import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -10,6 +12,7 @@ from typing import Any
 from omnimsg_common.db.models import TenantWhatsappAccount
 from omnimsg_common.db.session import session_scope
 from omnimsg_common.ids import new_id
+from omnimsg_common.queue import create_redis_client
 from omnimsg_common.settings import Settings
 from omnimsg_common.whatsapp_lifecycle import (
     BUSINESS_CONNECTED,
@@ -35,6 +38,7 @@ logger = logging.getLogger(__name__)
 
 TOKEN_SOURCE_ES = "embedded_signup"
 _PENDING_TOKEN_PLACEHOLDER = "pending_exchange"
+_ES_STATE_TTL_SECONDS = 3600
 
 
 @dataclass(frozen=True)
@@ -44,6 +48,7 @@ class StartResult:
     status: str
     correlation_id: str
     already_started: bool
+    state: str
 
 
 @dataclass(frozen=True)
@@ -69,6 +74,14 @@ class EmbeddedSignupConflictError(Exception):
 
 class EmbeddedSignupConfigError(Exception):
     """Missing Meta app credentials for code exchange."""
+
+    def __init__(self, message: str, *, correlation_id: str) -> None:
+        super().__init__(message)
+        self.correlation_id = correlation_id
+
+
+class EmbeddedSignupStateError(Exception):
+    """Missing or mismatched Embedded Signup state nonce."""
 
     def __init__(self, message: str, *, correlation_id: str) -> None:
         super().__init__(message)
@@ -104,6 +117,42 @@ class EmbeddedSignupService:
         self._settings = settings
         self._client = client
 
+    def _es_state_key(self, tenant_id: str) -> str:
+        return self._settings._prefixed_key(f"es_state:{tenant_id}")
+
+    def issue_es_state(self, tenant_id: str) -> str:
+        state = secrets.token_urlsafe(24)
+        client = create_redis_client(self._settings)
+        client.set(
+            self._es_state_key(tenant_id),
+            state,
+            ex=_ES_STATE_TTL_SECONDS,
+        )
+        return state
+
+    def consume_es_state(
+        self,
+        *,
+        tenant_id: str,
+        state: str | None,
+        correlation_id: str,
+    ) -> None:
+        presented = (state or "").strip()
+        if not presented:
+            raise EmbeddedSignupStateError(
+                "Embedded Signup state is required",
+                correlation_id=correlation_id,
+            )
+        client = create_redis_client(self._settings)
+        key = self._es_state_key(tenant_id)
+        expected = client.get(key)
+        if expected is None or not hmac.compare_digest(str(expected), presented):
+            raise EmbeddedSignupStateError(
+                "Embedded Signup state is invalid or expired",
+                correlation_id=correlation_id,
+            )
+        client.delete(key)
+
     def start_signup(
         self,
         *,
@@ -131,6 +180,7 @@ class EmbeddedSignupService:
                     status=row.status,
                     correlation_id=correlation_id,
                     already_started=True,
+                    state=self.issue_es_state(tenant_id),
                 )
 
             if row is not None and row.status in POST_ATTACH_STATUSES:
@@ -140,6 +190,7 @@ class EmbeddedSignupService:
                     status=row.status,
                     correlation_id=correlation_id,
                     already_started=True,
+                    state=self.issue_es_state(tenant_id),
                 )
 
             if row is None:
@@ -174,6 +225,7 @@ class EmbeddedSignupService:
                     status=row.status,
                     correlation_id=correlation_id,
                     already_started=True,
+                    state=self.issue_es_state(tenant_id),
                 )
 
             session.flush()
@@ -183,6 +235,7 @@ class EmbeddedSignupService:
                 status=row.status,
                 correlation_id=correlation_id,
                 already_started=False,
+                state=self.issue_es_state(tenant_id),
             )
 
     def get_connection(self, *, tenant_id: str):
@@ -205,6 +258,7 @@ class EmbeddedSignupService:
         waba_id: str,
         phone_number_id: str,
         meta_business_id: str | None = None,
+        state: str | None = None,
         correlation_id: str | None = None,
     ) -> AttachResult:
         correlation_id = (
@@ -218,6 +272,11 @@ class EmbeddedSignupService:
         code = code.strip()
         meta_business_id = (
             meta_business_id.strip() if meta_business_id and meta_business_id.strip() else None
+        )
+        self.consume_es_state(
+            tenant_id=tenant_id,
+            state=state,
+            correlation_id=correlation_id,
         )
 
         logger.info(
