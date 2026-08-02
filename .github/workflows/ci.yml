@@ -60,11 +60,47 @@ jobs:
       - name: Ruff
         run: ruff check apps packages tests
 
+      - name: WhatsApp lifecycle SSOT
+        run: ./scripts/check-whatsapp-lifecycle-ssot.sh
+
       - name: Apply migrations
         run: omnimsg-migrate upgrade head
+
+      - name: Inbound no-referral quality gate
+        run: >-
+          pytest -q
+          tests/test_conversation_referral.py::test_inbound_without_referral_preserves_pre_slice_behavior
+
+      - name: Provisioning lifecycle golden path
+        run: >-
+          pytest -q
+          tests/test_provisioning_e2e.py::test_golden_path_not_connected_to_ready_retry_ready
 
       - name: Pytest
         run: pytest -q
 
       - name: OpenAPI contract present
         run: test -f packages/contracts/openapi/openapi.yaml
+
+  web-build:
+    name: Next.js apps/web
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build

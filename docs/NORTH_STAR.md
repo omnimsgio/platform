@@ -238,7 +238,7 @@ Out of scope forever under ADR-0019: campaign management, audience creation, ad 
 | **P0** | Meta ops: App Review (`management` + `messaging`), System User, long-lived token, Credit Line | External; do not block ES/lifecycle engineering on credit line |
 | **P1** | Embedded Signup + Tenant Connection Lifecycle | **Done** — ends at `PHONE_PENDING`; ADR-0020 |
 | **P2** | Phone registration, webhook verify, health → `READY`, retry, E2E | **Done (Feature Complete / frozen)** — P2.1–P2.5; [v1 checklist](adr/ADR-0020-lifecycle-v1-release-checklist.md) |
-| **P3** | Inbound message persistence / conversation thread | Lifecycle **read-only dependency** only; must not mutate ADR-0020 / v1 state machine — [P3 stub](P3-inbound-persistence.md) |
+| **P3** | Inbound message persistence / conversation thread | **Done** — durable inbound Message + thread API; lifecycle read-only — [P3](P3-inbound-persistence.md) |
 | Frozen | Marketing Domain, CAPI, Ads, `manage_events`, Conversation Identity, ConversationReferral feature freeze | No eng work in CPaaS v1 |
 ## Related Documents
 

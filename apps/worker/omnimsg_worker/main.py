@@ -6,21 +6,42 @@ import logging
 import signal
 import sys
 import time
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from types import FrameType
 from typing import Any
 
-from omnimsg_common.db.models import Message, TenantWhatsappAccount
+from omnimsg_common.db.models import (
+    Conversation,
+    ConversationReferral,
+    Message,
+    TenantWhatsappAccount,
+)
 from omnimsg_common.db.session import session_scope
 from omnimsg_common.ids import new_id
 from omnimsg_common.queue import create_redis_client, dequeue_json_any, enqueue_json
 from omnimsg_common.settings import get_settings
+from omnimsg_common.whatsapp_lifecycle import messaging_ready_statuses
 from omnimsg_providers.base import SendResult
 from omnimsg_providers.stub import get_default_provider
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from whatsapp import MetaWhatsAppProvider
+from whatsapp.referral import extract_referrals
+
+from omnimsg_worker.inbound_persist import persist_inbound_messages_from_webhook
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ReferralPersistStats:
+    """Lightweight referral metrics for one inbound job."""
+
+    detected: int = 0
+    persisted: int = 0
+    skipped: int = 0
+    duplicate: int = 0
 
 _shutdown = False
 
@@ -43,17 +64,18 @@ def _iso_now() -> str:
 
 
 def _load_whatsapp_account(tenant_id: str) -> tuple[str, str] | None:
-    """Return (phone_number_id, access_token) for an active WhatsApp account."""
+    """Return (phone_number_id, access_token) for a messaging-ready WhatsApp account."""
+    ready = messaging_ready_statuses()
     with session_scope() as session:
         row = session.scalars(
             select(TenantWhatsappAccount)
             .where(
                 TenantWhatsappAccount.tenant_id == tenant_id,
-                TenantWhatsappAccount.status == "active",
+                TenantWhatsappAccount.status.in_(ready),
             )
             .order_by(TenantWhatsappAccount.created_at.asc())
         ).first()
-        if row is None:
+        if row is None or not row.phone_number_id or not row.business_access_token:
             return None
         return row.phone_number_id, row.business_access_token
 
@@ -74,7 +96,7 @@ def _send_outbound(
                 status="failed",
                 provider="meta_whatsapp",
                 error_code="whatsapp_not_configured",
-                error_message="No active WhatsApp account configured for tenant",
+                error_message="No messaging-ready WhatsApp account configured for tenant",
             )
         phone_number_id, access_token = account
         with MetaWhatsAppProvider(
@@ -258,8 +280,135 @@ def _status_error(status_obj: dict[str, Any]) -> tuple[str | None, str | None]:
     return error_code, error_message
 
 
-def process_inbound_job(job: dict[str, Any]) -> None:
-    """Handle inbound webhook jobs; apply message_status updates."""
+def _parse_received_at(raw: Any) -> datetime:
+    """OmniMsg webhook receive time from envelope; fallback to now UTC."""
+    if isinstance(raw, str) and raw.strip():
+        text = raw.strip().replace("Z", "+00:00")
+        try:
+            parsed = datetime.fromisoformat(text)
+            if parsed.tzinfo is None:
+                return parsed.replace(tzinfo=UTC)
+            return parsed
+        except ValueError:
+            pass
+    return datetime.now(UTC)
+
+
+def _upsert_conversation(
+    *,
+    tenant_id: str,
+    channel: str,
+    provider: str,
+    contact_external_id: str,
+    phone_number_id: str | None,
+) -> str:
+    """Insert or reuse conversation; rely on DB uniqueness for races."""
+    conversation_id = new_id("conv")
+    now = datetime.now(UTC)
+    update_fields: dict[str, Any] = {"updated_at": now}
+    if phone_number_id:
+        update_fields["phone_number_id"] = phone_number_id
+    stmt = (
+        insert(Conversation)
+        .values(
+            id=conversation_id,
+            tenant_id=tenant_id,
+            channel=channel,
+            provider=provider,
+            contact_external_id=contact_external_id,
+            phone_number_id=phone_number_id,
+            created_at=now,
+            updated_at=now,
+        )
+        .on_conflict_do_update(
+            constraint="uq_conversations_tenant_channel_contact",
+            set_=update_fields,
+        )
+        .returning(Conversation.id)
+    )
+    with session_scope() as session:
+        return str(session.execute(stmt).scalar_one())
+
+
+def persist_conversation_referrals(
+    *,
+    tenant_id: str,
+    channel: str,
+    provider: str,
+    payload: dict[str, Any],
+    received_at: datetime,
+) -> ReferralPersistStats:
+    """Extract and persist CTWA referrals; never raises for parser issues."""
+    stats = ReferralPersistStats()
+    extracted = extract_referrals(payload, tenant_id=tenant_id)
+    stats.detected = extracted.detected
+    stats.skipped = extracted.skipped
+    referrals = extracted.referrals or []
+
+    for item in referrals:
+        try:
+            conversation_id = _upsert_conversation(
+                tenant_id=tenant_id,
+                channel=channel,
+                provider=provider,
+                contact_external_id=item.contact_external_id,
+                phone_number_id=item.phone_number_id,
+            )
+            referral_id = new_id("cref")
+            now = datetime.now(UTC)
+            stmt = (
+                insert(ConversationReferral)
+                .values(
+                    id=referral_id,
+                    tenant_id=tenant_id,
+                    conversation_id=conversation_id,
+                    source=item.source,
+                    source_id=item.source_id,
+                    headline=item.headline,
+                    body=item.body,
+                    media_type=item.media_type,
+                    ctwa_clid=item.ctwa_clid,
+                    raw_payload=item.raw_payload,
+                    provider_message_id=item.provider_message_id,
+                    received_at=received_at,
+                    created_at=now,
+                    updated_at=now,
+                )
+                .on_conflict_do_nothing(
+                    constraint="uq_conversation_referrals_tenant_provider_message"
+                )
+                .returning(ConversationReferral.id)
+            )
+            with session_scope() as session:
+                inserted_id = session.execute(stmt).scalar_one_or_none()
+                if inserted_id:
+                    stats.persisted += 1
+                else:
+                    stats.duplicate += 1
+        except Exception:  # noqa: BLE001 — isolate per-message persist errors
+            stats.skipped += 1
+            logger.warning(
+                "referral_skipped tenant_id=%s provider_message_id=%s reason=%s",
+                tenant_id,
+                item.provider_message_id,
+                "persist_failed",
+                exc_info=True,
+            )
+
+    logger.info(
+        "metric referrals_detected=%s referrals_persisted=%s "
+        "referrals_skipped=%s referrals_duplicate=%s tenant_id=%s",
+        stats.detected,
+        stats.persisted,
+        stats.skipped,
+        stats.duplicate,
+        tenant_id,
+    )
+    return stats
+
+
+def process_inbound_job(job: dict[str, Any]) -> ReferralPersistStats | None:
+    """Handle inbound webhook jobs; persist referrals then message_status updates."""
     event = job.get("event") if isinstance(job.get("event"), dict) else {}
     data = event.get("data") if isinstance(event.get("data"), dict) else {}
     payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
@@ -272,16 +421,66 @@ def process_inbound_job(job: dict[str, Any]) -> None:
 
     if not tenant_id:
         logger.warning("skipping inbound job without tenant_id: %s", job)
-        return
+        return None
+
+    referral_stats: ReferralPersistStats | None = None
+    try:
+        referral_stats = persist_conversation_referrals(
+            tenant_id=str(tenant_id),
+            channel=str(channel),
+            provider=str(provider),
+            payload=payload,
+            received_at=_parse_received_at(data.get("received_at")),
+        )
+    except Exception:  # noqa: BLE001 — referral path must not block status updates
+        logger.error(
+            "referral_persist_failed tenant_id=%s provider_message_id=%s reason=%s",
+            tenant_id,
+            "-",
+            "unexpected_persist_error",
+            exc_info=True,
+        )
+
+    if kind == "inbound_message":
+        try:
+            inbound_stats = persist_inbound_messages_from_webhook(
+                tenant_id=str(tenant_id),
+                channel=str(channel),
+                provider=str(provider),
+                correlation_id=str(correlation_id),
+                payload=payload,
+                received_at=(
+                    data.get("received_at")
+                    if isinstance(data.get("received_at"), str)
+                    else None
+                ),
+            )
+            logger.info(
+                "inbound_message persisted inserted=%s duplicate=%s "
+                "skipped=%s tenant_id=%s correlation_id=%s",
+                inbound_stats.inserted,
+                inbound_stats.duplicate,
+                inbound_stats.skipped,
+                tenant_id,
+                correlation_id,
+            )
+        except Exception:  # noqa: BLE001 — must not block other paths
+            logger.error(
+                "inbound_message_persist_failed tenant_id=%s correlation_id=%s",
+                tenant_id,
+                correlation_id,
+                exc_info=True,
+            )
+        return referral_stats
 
     if kind != "message_status":
         logger.info(
-            "inbound job kind=%s ignored (no-op) tenant_id=%s correlation_id=%s",
+            "inbound job kind=%s status_path_skipped tenant_id=%s correlation_id=%s",
             kind,
             tenant_id,
             correlation_id,
         )
-        return
+        return referral_stats
 
     updates = _extract_status_updates(payload)
     if not updates:
@@ -290,7 +489,7 @@ def process_inbound_job(job: dict[str, Any]) -> None:
             tenant_id,
             correlation_id,
         )
-        return
+        return referral_stats
 
     for status_obj in updates:
         provider_message_id = status_obj.get("id")
@@ -340,6 +539,8 @@ def process_inbound_job(job: dict[str, Any]) -> None:
             error_code=error_code,
             error_message=error_message,
         )
+
+    return referral_stats
 
 
 def run_once(timeout_seconds: int = 1) -> bool:

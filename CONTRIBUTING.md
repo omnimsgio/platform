@@ -53,7 +53,7 @@ messaging: implement WhatsApp send adapter
   - **Compatibility Promise:** v1 APIs, statuses, and transition rules stay compatible during P3; incompatible changes require `lifecycle_version = 2`.
   - **Operational Freeze:** dependency is `Provisioning → Lifecycle → P3`. P3 may use lifecycle only as a read dependency (messaging-ready gate). Never mutate lifecycle from inbound / worker / gateway.
   - **P3 must not** add lifecycle statuses, edit `transition` / `ALLOWED_TRANSITIONS` / `health_ok`, add provisioning endpoints, or change ADR-0020 in a P3 PR. Change Control: ADR-0020 edits need an ADR amendment (or superseding ADR).
-- **Inbound quality gate** — changes to the inbound webhook pipeline must keep the regression test that webhooks **without** `messages[].referral` behave as before the ConversationReferral slice (see `tests/test_conversation_referral.py`).
+- **Inbound quality gate** — changes to the inbound webhook pipeline must keep the regression that webhooks **without** `messages[].referral` invent **no** ConversationReferral rows (see `tests/test_conversation_referral.py`). P3 may persist Conversation + inbound Message.
 
 ## Pull Requests
 

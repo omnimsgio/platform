@@ -11,7 +11,7 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from omnimsg_common.auth import hash_api_key, looks_like_api_key
-from omnimsg_common.db.models import ApiKey, Message, Tenant
+from omnimsg_common.db.models import ApiKey, Conversation, Message, Tenant
 from omnimsg_common.db.session import session_scope
 from omnimsg_common.ids import new_id
 from omnimsg_common.queue import create_redis_client, enqueue_json
@@ -19,6 +19,22 @@ from omnimsg_common.settings import Settings, get_settings
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+
+from omnimsg_api.embedded_signup import (
+    EmbeddedSignupAttachError,
+    EmbeddedSignupConfigError,
+    EmbeddedSignupConflictError,
+    EmbeddedSignupService,
+)
+from omnimsg_api.provisioning import (
+    ProvisioningConflictError,
+    ProvisioningRegisterError,
+    ProvisioningService,
+    ProvisioningStateError,
+    ProvisioningUpstreamError,
+)
+from omnimsg_api.provisioning_retry import RetryService
+from omnimsg_api.whatsapp_health import HealthService
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +79,17 @@ class MessageResponse(BaseModel):
     created_at: str
     updated_at: str
     correlation_id: str
+    direction: str = "outbound"
+    from_address: str | None = None
+    conversation_id: str | None = None
+    provider_message_id: str | None = None
+
+
+class ConversationMessagesResponse(BaseModel):
+    conversation_id: str
+    messages: list[MessageResponse]
+    limit: int
+    offset: int
 
 
 class ResolveAuthRequest(BaseModel):
@@ -72,6 +99,115 @@ class ResolveAuthRequest(BaseModel):
 class ResolveAuthResponse(BaseModel):
     tenant_id: str
     api_key_id: str
+
+
+class EmbeddedSignupCompleteRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=4096)
+    waba_id: str = Field(min_length=1, max_length=64)
+    phone_number_id: str = Field(min_length=1, max_length=64)
+    meta_business_id: str | None = Field(default=None, max_length=64)
+
+
+class EmbeddedSignupCompleteResponse(BaseModel):
+    account_id: str
+    tenant_id: str
+    waba_id: str
+    phone_number_id: str
+    status: str
+    already_attached: bool
+    correlation_id: str
+    meta_business_id: str | None = None
+    status_reason: str | None = None
+
+
+class EmbeddedSignupStartResponse(BaseModel):
+    account_id: str
+    tenant_id: str
+    status: str
+    correlation_id: str
+    already_started: bool
+
+
+class HealthChecks(BaseModel):
+    business_token: bool
+    waba: bool
+    phone_number: bool
+    phone_registered: bool
+    webhook_verified: bool
+    graph_health: bool
+
+
+class WhatsappConnectionResponse(BaseModel):
+    status: str
+    status_reason: str | None = None
+    updated_at: str | None = None
+    correlation_id: str | None = None
+    last_error: str | None = None
+    recovery_target: str | None = None
+    lifecycle_version: int
+    waba_id: str | None = None
+    phone_number_id: str | None = None
+    credit_line_attached: bool
+    badge: str
+    message: str
+    account_id: str | None = None
+    checks: HealthChecks | None = None
+
+
+class RegisterPhoneRequest(BaseModel):
+    pin: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+
+
+class RegisterPhoneResponse(BaseModel):
+    status: str
+    status_reason: str | None = None
+    updated_at: str | None = None
+    correlation_id: str
+    already_registered: bool
+    last_error: str | None = None
+    recovery_target: str | None = None
+    lifecycle_version: int
+    waba_id: str | None = None
+    phone_number_id: str | None = None
+    credit_line_attached: bool
+    badge: str
+    message: str
+    account_id: str | None = None
+
+
+class ProvisionWebhookResponse(BaseModel):
+    status: str
+    status_reason: str | None = None
+    updated_at: str | None = None
+    correlation_id: str
+    already_provisioned: bool
+    last_error: str | None = None
+    recovery_target: str | None = None
+    lifecycle_version: int
+    waba_id: str | None = None
+    phone_number_id: str | None = None
+    credit_line_attached: bool
+    badge: str
+    message: str
+    account_id: str | None = None
+
+
+class HealthCheckResponse(BaseModel):
+    status: str
+    status_reason: str | None = None
+    updated_at: str | None = None
+    correlation_id: str
+    already_healthy: bool
+    checks: HealthChecks
+    last_error: str | None = None
+    recovery_target: str | None = None
+    lifecycle_version: int
+    waba_id: str | None = None
+    phone_number_id: str | None = None
+    credit_line_attached: bool
+    badge: str
+    message: str
+    account_id: str | None = None
 
 
 def _correlation_id(header_value: str | None) -> str:
@@ -131,6 +267,23 @@ def _message_response_from_row(row: Message) -> CreateMessageResponse:
         channel=row.channel,
         created_at=_iso(row.created_at),
         correlation_id=row.correlation_id,
+    )
+
+
+def _full_message_response(row: Message) -> MessageResponse:
+    return MessageResponse(
+        id=row.id,
+        status=row.status,
+        channel=row.channel,
+        to=row.to,
+        type=row.type,
+        created_at=_iso(row.created_at),
+        updated_at=_iso(row.updated_at),
+        correlation_id=row.correlation_id,
+        direction=getattr(row, "direction", None) or "outbound",
+        from_address=getattr(row, "from_address", None),
+        conversation_id=getattr(row, "conversation_id", None),
+        provider_message_id=getattr(row, "provider_message_id", None),
     )
 
 
@@ -374,16 +527,407 @@ async def get_message(
                 message="Message not found",
                 correlation_id=correlation_id,
             )
-        return MessageResponse(
-            id=row.id,
-            status=row.status,
-            channel=row.channel,
-            to=row.to,
-            type=row.type,
-            created_at=_iso(row.created_at),
-            updated_at=_iso(row.updated_at),
-            correlation_id=row.correlation_id,
+        return _full_message_response(row)
+
+
+@app.get(
+    "/v1/conversations/{conversation_id}/messages",
+    response_model=ConversationMessagesResponse,
+)
+async def list_conversation_messages(
+    conversation_id: str,
+    limit: int = 50,
+    offset: int = 0,
+    x_correlation_id: str | None = Header(default=None, alias="X-Correlation-Id"),
+    x_tenant_id: str | None = Header(default=None, alias=TENANT_HEADER),
+) -> ConversationMessagesResponse:
+    """List messages in a conversation thread (oldest → newest). Read-only in P3."""
+    correlation_id = _correlation_id(x_correlation_id)
+    tenant_id = _require_tenant(x_tenant_id, correlation_id)
+    limit = max(1, min(limit, 100))
+    offset = max(0, offset)
+
+    with session_scope() as session:
+        conversation = session.scalars(
+            select(Conversation).where(
+                Conversation.id == conversation_id,
+                Conversation.tenant_id == tenant_id,
+            )
+        ).first()
+        if conversation is None:
+            raise _error(
+                404,
+                code="not_found",
+                message="Conversation not found",
+                correlation_id=correlation_id,
+            )
+        rows = session.scalars(
+            select(Message)
+            .where(
+                Message.tenant_id == tenant_id,
+                Message.conversation_id == conversation_id,
+            )
+            .order_by(Message.created_at.asc())
+            .offset(offset)
+            .limit(limit)
+        ).all()
+        return ConversationMessagesResponse(
+            conversation_id=conversation_id,
+            messages=[_full_message_response(row) for row in rows],
+            limit=limit,
+            offset=offset,
         )
+
+
+@app.post(
+    "/v1/whatsapp/embedded-signup/start",
+    response_model=EmbeddedSignupStartResponse,
+)
+async def start_embedded_signup(
+    x_correlation_id: str | None = Header(default=None, alias="X-Correlation-Id"),
+    x_tenant_id: str | None = Header(default=None, alias=TENANT_HEADER),
+) -> EmbeddedSignupStartResponse:
+    """Mark WhatsApp connection lifecycle as Embedded Signup started."""
+    settings = get_settings()
+    correlation_id = _correlation_id(x_correlation_id)
+    tenant_id = _require_tenant(x_tenant_id, correlation_id)
+    result = EmbeddedSignupService(settings).start_signup(
+        tenant_id=tenant_id,
+        correlation_id=correlation_id,
+    )
+    return EmbeddedSignupStartResponse(
+        account_id=result.account_id,
+        tenant_id=result.tenant_id,
+        status=result.status,
+        correlation_id=result.correlation_id,
+        already_started=result.already_started,
+    )
+
+
+@app.get(
+    "/v1/whatsapp/connection",
+    response_model=WhatsappConnectionResponse,
+)
+async def get_whatsapp_connection(
+    x_correlation_id: str | None = Header(default=None, alias="X-Correlation-Id"),
+    x_tenant_id: str | None = Header(default=None, alias=TENANT_HEADER),
+) -> WhatsappConnectionResponse:
+    """Return canonical WhatsApp connection lifecycle for the tenant."""
+    settings = get_settings()
+    correlation_id = _correlation_id(x_correlation_id)
+    tenant_id = _require_tenant(x_tenant_id, correlation_id)
+    view = EmbeddedSignupService(settings).get_connection(tenant_id=tenant_id)
+    return WhatsappConnectionResponse(
+        status=view.status,
+        status_reason=view.status_reason,
+        updated_at=_iso(view.updated_at) if view.updated_at else None,
+        correlation_id=view.correlation_id,
+        last_error=view.last_error,
+        recovery_target=view.recovery_target,
+        lifecycle_version=view.lifecycle_version,
+        waba_id=view.waba_id,
+        phone_number_id=view.phone_number_id,
+        credit_line_attached=view.credit_line_attached,
+        badge=view.badge,
+        message=view.message,
+        account_id=view.account_id,
+    )
+
+
+@app.post(
+    "/v1/whatsapp/register-phone",
+    response_model=RegisterPhoneResponse,
+)
+async def register_whatsapp_phone(
+    payload: RegisterPhoneRequest,
+    x_correlation_id: str | None = Header(default=None, alias="X-Correlation-Id"),
+    x_tenant_id: str | None = Header(default=None, alias=TENANT_HEADER),
+) -> RegisterPhoneResponse:
+    """Register Cloud API phone (PIN) and advance lifecycle to WEBHOOK_PENDING."""
+    settings = get_settings()
+    correlation_id = _correlation_id(x_correlation_id)
+    tenant_id = _require_tenant(x_tenant_id, correlation_id)
+    try:
+        result = ProvisioningService(settings).register_phone(
+            tenant_id=tenant_id,
+            pin=payload.pin,
+            correlation_id=correlation_id,
+        )
+    except ProvisioningConflictError as exc:
+        raise _error(
+            409,
+            code="conflict",
+            message=str(exc),
+            correlation_id=exc.correlation_id,
+        ) from exc
+    except ProvisioningStateError as exc:
+        raise _error(
+            409,
+            code="conflict",
+            message=str(exc),
+            correlation_id=exc.correlation_id,
+        ) from exc
+    except ProvisioningRegisterError as exc:
+        raise _error(
+            502,
+            code="upstream_failure",
+            message=str(exc),
+            correlation_id=exc.correlation_id,
+            retryable=True,
+        ) from exc
+
+    return RegisterPhoneResponse(
+        status=result.status,
+        status_reason=result.status_reason,
+        updated_at=_iso(result.updated_at) if result.updated_at else None,
+        correlation_id=result.correlation_id,
+        already_registered=result.already_registered,
+        last_error=result.last_error,
+        recovery_target=result.recovery_target,
+        lifecycle_version=result.lifecycle_version,
+        waba_id=result.waba_id,
+        phone_number_id=result.phone_number_id,
+        credit_line_attached=result.credit_line_attached,
+        badge=result.badge,
+        message=result.message,
+        account_id=result.account_id,
+    )
+
+
+@app.post(
+    "/v1/whatsapp/provision-webhook",
+    response_model=ProvisionWebhookResponse,
+)
+async def provision_whatsapp_webhook(
+    x_correlation_id: str | None = Header(default=None, alias="X-Correlation-Id"),
+    x_tenant_id: str | None = Header(default=None, alias=TENANT_HEADER),
+) -> ProvisionWebhookResponse:
+    """Subscribe WABA to app webhooks (Graph) and advance to HEALTH_CHECK_PENDING.
+
+    App-level hub verify (GET challenge) stays on the gateway; this endpoint only
+    performs tenant-level subscribed_apps subscribe + Graph confirmation.
+    """
+    settings = get_settings()
+    correlation_id = _correlation_id(x_correlation_id)
+    tenant_id = _require_tenant(x_tenant_id, correlation_id)
+    try:
+        result = ProvisioningService(settings).provision_webhook(
+            tenant_id=tenant_id,
+            correlation_id=correlation_id,
+        )
+    except ProvisioningConflictError as exc:
+        raise _error(
+            409,
+            code="conflict",
+            message=str(exc),
+            correlation_id=exc.correlation_id,
+        ) from exc
+    except ProvisioningStateError as exc:
+        raise _error(
+            409,
+            code="conflict",
+            message=str(exc),
+            correlation_id=exc.correlation_id,
+        ) from exc
+    except ProvisioningUpstreamError as exc:
+        raise _error(
+            502,
+            code="upstream_failure",
+            message=str(exc),
+            correlation_id=exc.correlation_id,
+            retryable=True,
+        ) from exc
+
+    return ProvisionWebhookResponse(
+        status=result.status,
+        status_reason=result.status_reason,
+        updated_at=_iso(result.updated_at) if result.updated_at else None,
+        correlation_id=result.correlation_id,
+        already_provisioned=result.already_provisioned,
+        last_error=result.last_error,
+        recovery_target=result.recovery_target,
+        lifecycle_version=result.lifecycle_version,
+        waba_id=result.waba_id,
+        phone_number_id=result.phone_number_id,
+        credit_line_attached=result.credit_line_attached,
+        badge=result.badge,
+        message=result.message,
+        account_id=result.account_id,
+    )
+
+
+@app.post(
+    "/v1/whatsapp/health-check",
+    response_model=HealthCheckResponse,
+)
+async def whatsapp_health_check(
+    x_correlation_id: str | None = Header(default=None, alias="X-Correlation-Id"),
+    x_tenant_id: str | None = Header(default=None, alias=TENANT_HEADER),
+) -> HealthCheckResponse:
+    """Run ADR-0020 health_ok checks; single transition to READY or ERROR."""
+    settings = get_settings()
+    correlation_id = _correlation_id(x_correlation_id)
+    tenant_id = _require_tenant(x_tenant_id, correlation_id)
+    try:
+        result = HealthService(settings).check_and_promote(
+            tenant_id=tenant_id,
+            correlation_id=correlation_id,
+        )
+    except ProvisioningConflictError as exc:
+        raise _error(
+            409,
+            code="conflict",
+            message=str(exc),
+            correlation_id=exc.correlation_id,
+        ) from exc
+    except ProvisioningStateError as exc:
+        raise _error(
+            409,
+            code="conflict",
+            message=str(exc),
+            correlation_id=exc.correlation_id,
+        ) from exc
+
+    return HealthCheckResponse(
+        status=result.status,
+        status_reason=result.status_reason,
+        updated_at=_iso(result.updated_at) if result.updated_at else None,
+        correlation_id=result.correlation_id,
+        already_healthy=result.already_healthy,
+        checks=HealthChecks(**result.checks),
+        last_error=result.last_error,
+        recovery_target=result.recovery_target,
+        lifecycle_version=result.lifecycle_version,
+        waba_id=result.waba_id,
+        phone_number_id=result.phone_number_id,
+        credit_line_attached=result.credit_line_attached,
+        badge=result.badge,
+        message=result.message,
+        account_id=result.account_id,
+    )
+
+
+@app.post(
+    "/v1/whatsapp/retry",
+    response_model=WhatsappConnectionResponse,
+)
+async def retry_whatsapp_provisioning(
+    x_correlation_id: str | None = Header(default=None, alias="X-Correlation-Id"),
+    x_tenant_id: str | None = Header(default=None, alias=TENANT_HEADER),
+) -> WhatsappConnectionResponse:
+    """Recover from ERROR via recovery_target only (ADR-0020). Same shape as GET connection."""
+    settings = get_settings()
+    correlation_id = _correlation_id(x_correlation_id)
+    tenant_id = _require_tenant(x_tenant_id, correlation_id)
+    try:
+        result = RetryService(settings).retry(
+            tenant_id=tenant_id,
+            correlation_id=correlation_id,
+            retry_reason="user",
+        )
+    except ProvisioningConflictError as exc:
+        raise _error(
+            409,
+            code="conflict",
+            message=str(exc),
+            correlation_id=exc.correlation_id,
+        ) from exc
+    except ProvisioningStateError as exc:
+        raise _error(
+            409,
+            code="conflict",
+            message=str(exc),
+            correlation_id=exc.correlation_id,
+        ) from exc
+    except ProvisioningUpstreamError as exc:
+        raise _error(
+            502,
+            code="upstream_failure",
+            message=str(exc),
+            correlation_id=exc.correlation_id,
+            retryable=True,
+        ) from exc
+
+    return WhatsappConnectionResponse(
+        status=result.status,
+        status_reason=result.status_reason,
+        updated_at=_iso(result.updated_at) if result.updated_at else None,
+        correlation_id=result.correlation_id,
+        last_error=result.last_error,
+        recovery_target=result.recovery_target,
+        lifecycle_version=result.lifecycle_version,
+        waba_id=result.waba_id,
+        phone_number_id=result.phone_number_id,
+        credit_line_attached=result.credit_line_attached,
+        badge=result.badge,
+        message=result.message,
+        account_id=result.account_id,
+        checks=HealthChecks(**result.checks) if result.checks is not None else None,
+    )
+
+
+@app.post(
+    "/v1/whatsapp/embedded-signup/complete",
+    response_model=EmbeddedSignupCompleteResponse,
+)
+async def complete_embedded_signup(
+    payload: EmbeddedSignupCompleteRequest,
+    x_correlation_id: str | None = Header(default=None, alias="X-Correlation-Id"),
+    x_tenant_id: str | None = Header(default=None, alias=TENANT_HEADER),
+    x_api_key_id: str | None = Header(default=None, alias=API_KEY_ID_HEADER),
+) -> EmbeddedSignupCompleteResponse:
+    """Exchange ES auth code and attach WhatsApp phone to the authenticated tenant."""
+    settings = get_settings()
+    correlation_id = _correlation_id(x_correlation_id)
+    tenant_id = _require_tenant(x_tenant_id, correlation_id)
+    api_key_id = x_api_key_id.strip() if x_api_key_id and x_api_key_id.strip() else None
+
+    service = EmbeddedSignupService(settings)
+    try:
+        result = service.attach_tenant_phone(
+            tenant_id=tenant_id,
+            api_key_id=api_key_id,
+            code=payload.code,
+            waba_id=payload.waba_id,
+            phone_number_id=payload.phone_number_id,
+            meta_business_id=payload.meta_business_id,
+            correlation_id=correlation_id,
+        )
+    except EmbeddedSignupConflictError as exc:
+        raise _error(
+            409,
+            code="conflict",
+            message=str(exc),
+            correlation_id=exc.correlation_id,
+        ) from exc
+    except EmbeddedSignupConfigError as exc:
+        raise _error(
+            503,
+            code="upstream_failure",
+            message=str(exc),
+            correlation_id=exc.correlation_id,
+            retryable=False,
+        ) from exc
+    except EmbeddedSignupAttachError as exc:
+        raise _error(
+            502,
+            code="upstream_failure",
+            message=str(exc),
+            correlation_id=exc.correlation_id,
+            retryable=True,
+        ) from exc
+
+    return EmbeddedSignupCompleteResponse(
+        account_id=result.account_id,
+        tenant_id=result.tenant_id,
+        waba_id=result.waba_id,
+        phone_number_id=result.phone_number_id,
+        status=result.status,
+        already_attached=result.already_attached,
+        correlation_id=result.correlation_id,
+        meta_business_id=result.meta_business_id,
+        status_reason=result.status_reason,
+    )
 
 
 @app.exception_handler(RequestValidationError)
@@ -432,7 +976,17 @@ async def http_exception_handler(_request: Request, exc: HTTPException):
 
 
 def run() -> None:
-    logging.basicConfig(level=get_settings().log_level)
+    settings = get_settings()
+    logging.basicConfig(level=settings.log_level)
+    dsn = (settings.sentry_dsn or "").strip()
+    if dsn:
+        try:
+            import sentry_sdk
+
+            sentry_sdk.init(dsn=dsn, traces_sample_rate=0.0)
+            logger.info("sentry initialized")
+        except Exception:
+            logger.exception("sentry init failed")
     uvicorn.run("omnimsg_api.main:app", host="0.0.0.0", port=8000, factory=False)
 
 

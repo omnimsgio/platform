@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omnimsg.io/events/message.inbound.received.v1.json",
+  "title": "message.inbound.received.v1",
+  "description": "Emitted after an inbound message is durably persisted (append-only schema; breaking changes require v2).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "tenant_id",
+    "correlation_id",
+    "data"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "minLength": 1 },
+    "event_type": { "const": "message.inbound.received.v1" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "correlation_id": { "type": "string", "minLength": 1 },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "message_id",
+        "conversation_id",
+        "channel",
+        "provider_message_id",
+        "from",
+        "received_at"
+      ],
+      "properties": {
+        "message_id": { "type": "string", "minLength": 1 },
+        "conversation_id": { "type": "string", "minLength": 1 },
+        "channel": {
+          "type": "string",
+          "enum": ["whatsapp", "sms", "email", "rcs", "push"]
+        },
+        "provider_message_id": { "type": "string", "minLength": 1 },
+        "from": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Contact external id (Meta messages[].from)"
+        },
+        "received_at": { "type": "string", "format": "date-time" },
+        "type": { "type": "string" },
+        "text": {
+          "type": ["string", "null"],
+          "description": "Optional text body preview"
+        }
+      }
+    }
+  }
+}
