@@ -30,6 +30,16 @@ export function middleware(request: NextRequest) {
     }
   }
 
+  // App Review static demos under public/app-review/ — skip /www|/portal rewrite.
+  if (pathname === "/app-review" || pathname.startsWith("/app-review/")) {
+    if (!pathname.endsWith(".html")) {
+      const reviewUrl = request.nextUrl.clone();
+      reviewUrl.pathname = `${pathname.replace(/\/$/, "")}/index.html`;
+      return NextResponse.rewrite(reviewUrl);
+    }
+    return NextResponse.next();
+  }
+
   const url = request.nextUrl.clone();
   if (surface === "marketing") {
     if (!pathname.startsWith("/www")) {
