@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>OmniMsg — App Review demo · business_management</title>
+    <style>
+      :root {
+        --navy: #0a1128;
+        --blue: #0047ab;
+        --teal: #00c2cb;
+        --muted: #4a5a6a;
+        --bg: #f7fbfd;
+        --card: #ffffff;
+        --line: #d7e3ec;
+        --ok: #0a7a3e;
+        --bad: #a11;
+        --font: "Segoe UI", system-ui, sans-serif;
+        --display: Georgia, "Times New Roman", serif;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: var(--font);
+        color: var(--navy);
+        background:
+          radial-gradient(120% 80% at 10% -10%, rgba(0, 194, 203, 0.22), transparent 55%),
+          radial-gradient(90% 70% at 100% 0%, rgba(0, 71, 171, 0.28), transparent 50%),
+          linear-gradient(180deg, #e8f4f8 0%, var(--bg) 42%, #fff 100%);
+      }
+      .shell {
+        width: min(920px, calc(100% - 2rem));
+        margin: 0 auto;
+        padding: 1.35rem 0 3rem;
+      }
+      .top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.25rem;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-family: var(--display);
+        font-weight: 700;
+        font-size: 1.35rem;
+        text-decoration: none;
+        color: inherit;
+      }
+      .brand img { width: 42px; height: 42px; }
+      .badge {
+        font-size: 0.75rem;
+        color: var(--blue);
+        border: 1px solid var(--line);
+        background: #fff;
+        border-radius: 999px;
+        padding: 0.35rem 0.7rem;
+        white-space: nowrap;
+      }
+      .hero {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 1rem;
+        padding: 1.5rem 1.5rem 1.35rem;
+        box-shadow: 0 10px 30px rgba(10, 17, 40, 0.06);
+        margin-bottom: 1rem;
+      }
+      .caption {
+        font-size: 0.8rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--blue);
+        margin: 0 0 0.45rem;
+        font-weight: 600;
+      }
+      h1 {
+        font-family: var(--display);
+        font-size: clamp(1.55rem, 3.2vw, 2.05rem);
+        margin: 0 0 0.65rem;
+        letter-spacing: -0.02em;
+      }
+      .lede {
+        margin: 0 0 1.15rem;
+        color: var(--muted);
+        line-height: 1.5;
+        max-width: 42rem;
+      }
+      .cta {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font: inherit;
+        font-weight: 650;
+        cursor: pointer;
+        border: 0;
+        border-radius: 0.55rem;
+        background: var(--blue);
+        color: #fff;
+        padding: 0.85rem 1.35rem;
+      }
+      .cta:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .note {
+        margin-top: 1.1rem;
+        background: #eef7fa;
+        border-left: 3px solid var(--teal);
+        padding: 0.75rem 0.9rem;
+        font-size: 0.92rem;
+        line-height: 1.45;
+        color: var(--navy);
+      }
+      .note code {
+        font-size: 0.86em;
+        background: rgba(10, 17, 40, 0.06);
+        padding: 0.1rem 0.3rem;
+        border-radius: 0.25rem;
+      }
+      .status-bar {
+        display: none;
+        margin-bottom: 1rem;
+        padding: 0.85rem 1rem;
+        border-radius: 0.75rem;
+        border: 1px solid var(--line);
+        background: #fff;
+        line-height: 1.45;
+      }
+      .status-bar.visible { display: block; }
+      .status-bar.ok { border-color: #b7e0c6; background: #f3fbf6; }
+      .status-bar.bad { border-color: #efc0c0; background: #fff6f6; }
+      .status-bar .step-cap {
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--blue);
+        font-weight: 650;
+        margin: 0 0 0.25rem;
+      }
+      .panel {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 1rem;
+        padding: 1.1rem 1.2rem;
+        margin-bottom: 0.85rem;
+        min-height: 4rem;
+      }
+      .panel.empty {
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+      .label-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+        margin-bottom: 0.35rem;
+      }
+      .pill {
+        font-size: 0.72rem;
+        font-weight: 650;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        border-radius: 999px;
+        padding: 0.2rem 0.55rem;
+        border: 1px solid var(--line);
+        background: #f7fbfd;
+      }
+      .pill.primary { border-color: #b7e0c6; background: #f3fbf6; color: var(--ok); }
+      .pill.informative { color: var(--muted); }
+      .call-note {
+        margin: 0 0 0.45rem;
+        font-size: 0.88rem;
+        color: var(--muted);
+        line-height: 1.4;
+      }
+      .path {
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 0.84rem;
+        background: #f0f6fa;
+        padding: 0.5rem 0.65rem;
+        border-radius: 0.4rem;
+        word-break: break-all;
+      }
+      .http {
+        font-weight: 650;
+        margin: 0.45rem 0;
+      }
+      .http.ok { color: var(--ok); }
+      .http.bad { color: var(--bad); }
+      pre {
+        margin: 0.4rem 0 0;
+        max-height: 240px;
+        overflow: auto;
+        background: #0a1128;
+        color: #d7f5ff;
+        border-radius: 0.65rem;
+        padding: 0.85rem;
+        font-size: 0.78rem;
+        line-height: 1.4;
+      }
+      .steps {
+        display: grid;
+        gap: 0.45rem;
+        margin: 0 0 1rem;
+        padding: 0;
+        list-style: none;
+      }
+      .steps li {
+        font-size: 0.9rem;
+        color: var(--muted);
+        padding-left: 1.1rem;
+        position: relative;
+      }
+      .steps li::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0.45rem;
+        width: 0.45rem;
+        height: 0.45rem;
+        border-radius: 50%;
+        background: var(--teal);
+      }
+      .steps li.active { color: var(--navy); font-weight: 600; }
+      .steps li.active::before { background: var(--blue); }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="top">
+        <a class="brand" href="https://omnimsg.io">
+          <img src="/brand/omnimsg-icon.png" alt="" width="42" height="42" />
+          OmniMsg
+        </a>
+        <span class="badge">App Review demo · business_management</span>
+      </div>
+
+      <section class="hero">
+        <p class="caption" id="hero-caption">Step 1: Open App Review demo</p>
+        <h1>App Review demo — business_management</h1>
+        <p class="lede">
+          OmniMsg discovers Business Manager assets so WhatsApp onboarding can
+          attach the correct WABA. This demo runs the same Graph calls the
+          backend uses in production.
+        </p>
+        <ul class="steps" id="flow-steps" aria-label="Demo steps">
+          <li data-step="1" class="active">Admin opens OmniMsg App Review demo</li>
+          <li data-step="2">Admin starts Business Manager asset discovery</li>
+          <li data-step="3">Backend calls Meta Graph with System User omnimsg_api</li>
+          <li data-step="4">OmniMsg shows businesses and owned WABAs</li>
+        </ul>
+        <button type="button" class="cta" id="discover">
+          Discover Business Assets
+        </button>
+        <p class="note">
+          Production use of <code>business_management</code> is server-to-server
+          via System User <code>omnimsg_api</code>. There is no end-user Facebook
+          Login or permission grant screen for this permission.
+        </p>
+      </section>
+
+      <div class="status-bar" id="status" role="status"></div>
+
+      <section aria-label="Graph results">
+        <p class="caption">Results — Business Manager discovery</p>
+        <div class="panel empty" id="results">
+          Click <strong>Discover Business Assets</strong>. OmniMsg will call Meta
+          Graph from the backend (System User) and show
+          <code>GET /me/businesses</code> (informative),
+          <code>GET /{business-id}</code>, and
+          <code>GET /{business-id}/owned_whatsapp_business_accounts</code>.
+        </div>
+      </section>
+    </div>
+    <script>
+      (function () {
+        var API_BASE =
+          window.OMNIMSG_API_BASE ||
+          (/\.localhost$|^localhost$|^127\.0\.0\.1$/.test(location.hostname)
+            ? "https://omnimsgio.localhost"
+            : "https://api.omnimsg.io");
+        var BUSINESS_ID = "1329905112443890";
+
+        var discoverBtn = document.getElementById("discover");
+        var statusEl = document.getElementById("status");
+        var results = document.getElementById("results");
+        var heroCaption = document.getElementById("hero-caption");
+
+        function setStep(n) {
+          document.querySelectorAll("#flow-steps li").forEach(function (li) {
+            li.classList.toggle(
+              "active",
+              Number(li.getAttribute("data-step")) === n
+            );
+          });
+        }
+
+        function showStatus(kind, stepCap, text) {
+          statusEl.className = "status-bar visible " + (kind || "");
+          statusEl.innerHTML =
+            '<p class="step-cap"></p><div class="body"></div>';
+          statusEl.querySelector(".step-cap").textContent = stepCap;
+          statusEl.querySelector(".body").textContent = text;
+        }
+
+        function renderCalls(data) {
+          var calls = data.calls || [];
+          if (!calls.length) {
+            results.className = "panel empty";
+            results.textContent = "No Graph calls returned.";
+            return;
+          }
+          results.className = "";
+          results.innerHTML = calls
+            .map(function (c) {
+              var ok = c.http_status >= 200 && c.http_status < 300;
+              var role = c.role || "primary";
+              var label = c.label ? "Call " + c.label : "Graph call";
+              return (
+                '<div class="panel">' +
+                '<div class="label-row">' +
+                '<span class="pill">' +
+                label +
+                "</span>" +
+                '<span class="pill ' +
+                role +
+                '">' +
+                role +
+                "</span>" +
+                "</div>" +
+                (c.note
+                  ? '<p class="call-note"></p>'
+                  : "") +
+                '<div class="path">' +
+                (c.method || "GET") +
+                " " +
+                (c.path || "") +
+                "</div>" +
+                '<div class="http ' +
+                (ok ? "ok" : "bad") +
+                '">HTTP ' +
+                c.http_status +
+                "</div>" +
+                "<pre>" +
+                JSON.stringify(c.body, null, 2) +
+                "</pre></div>"
+              );
+            })
+            .join("");
+          results.querySelectorAll(".call-note").forEach(function (el, i) {
+            if (calls[i] && calls[i].note) el.textContent = calls[i].note;
+          });
+        }
+
+        discoverBtn.addEventListener("click", function () {
+          setStep(2);
+          heroCaption.textContent =
+            "Step 2: Admin starts Business Manager asset discovery";
+          showStatus(
+            "",
+            "Step 3: Calling Meta Graph via System User…",
+            "OmniMsg backend is using System User omnimsg_api (server-to-server). No Facebook Login UI."
+          );
+          setStep(3);
+          discoverBtn.disabled = true;
+          results.className = "panel empty";
+          results.textContent = "Calling Meta Graph via System User…";
+
+          fetch(API_BASE.replace(/\/$/, "") + "/app-review/bm-discover", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "omit",
+            cache: "no-store",
+            body: JSON.stringify({ business_id: BUSINESS_ID }),
+          })
+            .then(function (res) {
+              return res.json().then(function (body) {
+                return { ok: res.ok, status: res.status, body: body };
+              });
+            })
+            .then(function (r) {
+              if (!r.ok) {
+                setStep(3);
+                showStatus(
+                  "bad",
+                  "Step 3: Backend call failed",
+                  (r.body && (r.body.detail || r.body.error)) ||
+                    "Discover failed (HTTP " + r.status + ")."
+                );
+                results.className = "panel empty";
+                results.textContent =
+                  (r.body && (r.body.detail || r.body.error)) ||
+                  "Request failed.";
+                return;
+              }
+              setStep(4);
+              heroCaption.textContent =
+                "Step 4: OmniMsg shows businesses and owned WABAs";
+              showStatus(
+                "ok",
+                "Step 4: Discover businesses and owned WABAs",
+                "auth_mode=" +
+                  (r.body.auth_mode || "system_user") +
+                  " · system_user=" +
+                  (r.body.system_user || "omnimsg_api") +
+                  " · Business ID " +
+                  (r.body.business_id || BUSINESS_ID)
+              );
+              renderCalls(r.body);
+            })
+            .catch(function (e) {
+              showStatus(
+                "bad",
+                "Step 3: Network error",
+                String(e && e.message ? e.message : e)
+              );
+              results.className = "panel empty";
+              results.textContent = String(e && e.message ? e.message : e);
+            })
+            .finally(function () {
+              discoverBtn.disabled = false;
+            });
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -63,6 +63,31 @@ class Settings(BaseSettings):
         default="v21.0",
         description="Graph API version for Meta WhatsApp calls (META_GRAPH_API_VERSION)",
     )
+    meta_business_id: str = Field(
+        default="1329905112443890",
+        description="Partner Business Manager id (META_BUSINESS_ID)",
+    )
+    meta_business_access_token: str = Field(
+        default="",
+        description=(
+            "Business System User token for partner BM ops / App Review S2S demo "
+            "(META_BUSINESS_ACCESS_TOKEN); never expose to browsers"
+        ),
+    )
+    feature_app_review_bm_runner: bool = Field(
+        default=True,
+        description=(
+            "Public /app-review/bm-runner token paste UI on gateway "
+            "(FEATURE_APP_REVIEW_BM_RUNNER); disable after App Review"
+        ),
+    )
+    feature_app_review_bm_demo: bool = Field(
+        default=True,
+        description=(
+            "Public S2S App Review demo: POST /app-review/bm-discover "
+            "(FEATURE_APP_REVIEW_BM_DEMO); uses System User token server-side"
+        ),
+    )
     sentry_dsn: str = Field(
         default="",
         description="Optional Sentry DSN; when set, API captures exceptions (SENTRY_DSN)",
@@ -73,10 +98,14 @@ class Settings(BaseSettings):
         description="Fixed-window API key rate limit (requests per minute)",
     )
     cors_allowed_origins: str = Field(
-        default="https://app.omnimsg.io,https://omnimsgio-app.localhost",
+        default=(
+            "https://app.omnimsg.io,https://omnimsg.io,https://www.omnimsg.io,"
+            "https://omnimsgio-app.localhost,https://omnimsgio.localhost,"
+            "https://omnimsgio-web.localhost"
+        ),
         description=(
             "Comma-separated browser Origins allowed for CORS on the gateway "
-            "(portal Embedded Signup). Env: CORS_ALLOWED_ORIGINS"
+            "(portal Embedded Signup + App Review demo). Env: CORS_ALLOWED_ORIGINS"
         ),
     )
     app_version: str = Field(default="0.1.0")
@@ -122,6 +151,21 @@ class Settings(BaseSettings):
         description=(
             "Grace window (hours) for two-step API key rotation "
             "(ADMIN_API_KEY_GRACE_HOURS); old key stays valid until expiry"
+        ),
+    )
+    portal_base_url: str = Field(
+        default="https://app.omnimsg.io",
+        description=(
+            "Public portal origin for partner onboard URLs (PORTAL_BASE_URL)"
+        ),
+    )
+    partner_invite_ttl_hours: int = Field(
+        default=168,
+        ge=1,
+        le=720,
+        description=(
+            "Default invite accept TTL in hours (PARTNER_INVITE_TTL_HOURS); "
+            "applies only to accept, not post-accept provisioning"
         ),
     )
     log_level: str = Field(default="INFO")

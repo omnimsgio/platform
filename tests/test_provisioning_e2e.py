@@ -27,6 +27,7 @@ def e2e_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("META_APP_ID", "app_e2e_123")
     monkeypatch.setenv("META_APP_SECRET", "secret_e2e")
     monkeypatch.setenv("META_ES_CONFIG_ID", "es_cfg_e2e")
+    monkeypatch.setenv("REDIS_URL", "redis://127.0.0.1:6379/3")
     get_settings.cache_clear()
 
 
@@ -110,6 +111,7 @@ def test_golden_path_not_connected_to_ready_retry_ready(
         headers=_headers(seeded_tenant, correlation_id="req_es_start"),
     )
     assert start.status_code == 200
+    es_state = start.json()["state"]
 
     complete = client.post(
         "/v1/whatsapp/embedded-signup/complete",
@@ -118,6 +120,7 @@ def test_golden_path_not_connected_to_ready_retry_ready(
             "code": "es_code_e2e",
             "waba_id": "waba_e2e_1",
             "phone_number_id": phone_number_id,
+            "state": es_state,
         },
     )
     assert complete.status_code == 200
@@ -236,13 +239,11 @@ def test_e2e_register_fail_then_retry(
     )
     client = TestClient(app)
 
-    assert (
-        client.post(
-            "/v1/whatsapp/embedded-signup/start",
-            headers=_headers(seeded_tenant, correlation_id="req_es_s"),
-        ).status_code
-        == 200
+    start_fail = client.post(
+        "/v1/whatsapp/embedded-signup/start",
+        headers=_headers(seeded_tenant, correlation_id="req_es_s"),
     )
+    assert start_fail.status_code == 200
     assert (
         client.post(
             "/v1/whatsapp/embedded-signup/complete",
@@ -251,6 +252,7 @@ def test_e2e_register_fail_then_retry(
                 "code": "es_code_fail",
                 "waba_id": "waba_e2e_fail",
                 "phone_number_id": phone_number_id,
+                "state": start_fail.json()["state"],
             },
         ).json()["status"]
         == PHONE_PENDING

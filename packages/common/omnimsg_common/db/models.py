@@ -349,6 +349,46 @@ class ConversationReferral(Base):
     conversation: Mapped[Conversation] = relationship(back_populates="referrals")
 
 
+class PartnerInvite(Base):
+    """One-time partner onboarding invite (capability-partner-onboarding-v1)."""
+
+    __tablename__ = "partner_invites"
+    __table_args__ = (
+        Index("ix_partner_invites_status", "status"),
+        Index("ix_partner_invites_expires_at", "expires_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    token_hash: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    token_prefix: Mapped[str] = mapped_column(String(32), nullable=False)
+    partner_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    partner_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_by_actor: Mapped[str] = mapped_column(String(128), nullable=False)
+    tenant_id: Mapped[str | None] = mapped_column(
+        String(64),
+        ForeignKey("tenants.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    api_key_id: Mapped[str | None] = mapped_column(
+        String(64),
+        ForeignKey("api_keys.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    accepted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
 class AdminAuditEvent(Base):
     """Ops admin mutation audit (ADR-0022)."""
 

@@ -27,7 +27,21 @@ type Props = {
   apiBaseUrl: string;
   /** Meta ES extras.featureType; empty = classic exclusive Cloud API onboarding. */
   esFeatureType: string;
+  /** Prefill from invite accept; also written to sessionStorage. */
+  initialApiKey?: string;
+  /** Hide paste-key field (invite / resume with known key). */
+  hideApiKeyInput?: boolean;
 };
+
+export const PORTAL_API_KEY_SESSION = "omnimsg_portal_api_key";
+
+export function clearPortalApiKey(): void {
+  try {
+    sessionStorage.removeItem(PORTAL_API_KEY_SESSION);
+  } catch {
+    /* ignore */
+  }
+}
 
 const FINISH_EVENTS = new Set([
   "FINISH",
@@ -92,8 +106,6 @@ declare global {
   }
 }
 
-const SESSION_KEY = "omnimsg_portal_api_key";
-
 function loadScript(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[src="${src}"]`);
@@ -156,8 +168,10 @@ export function ConnectWhatsApp({
   esConfigId,
   apiBaseUrl,
   esFeatureType,
+  initialApiKey,
+  hideApiKeyInput = false,
 }: Props) {
-  const [apiKey, setApiKey] = useState("");
+  const [apiKey, setApiKey] = useState(initialApiKey?.trim() || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connection, setConnection] = useState<ConnectionState | null>(null);
@@ -167,17 +181,28 @@ export function ConnectWhatsApp({
   const attemptIdRef = useRef<string | null>(null);
   const attemptStartedAtRef = useRef<number | null>(null);
   const lastFinishEventRef = useRef<string | null>(null);
+  const esStateRef = useRef<string | null>(null);
+  const autoStepRef = useRef<string | null>(null);
   const coexistenceMode =
     esFeatureType.trim() === "whatsapp_business_app_onboarding";
 
   useEffect(() => {
+    if (initialApiKey?.trim()) {
+      try {
+        sessionStorage.setItem(PORTAL_API_KEY_SESSION, initialApiKey.trim());
+      } catch {
+        /* ignore */
+      }
+      setApiKey(initialApiKey.trim());
+      return;
+    }
     try {
-      const stored = sessionStorage.getItem(SESSION_KEY);
+      const stored = sessionStorage.getItem(PORTAL_API_KEY_SESSION);
       if (stored) setApiKey(stored);
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [initialApiKey]);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
@@ -284,12 +309,18 @@ export function ConnectWhatsApp({
   const persistKey = useCallback((value: string) => {
     setApiKey(value);
     try {
-      if (value) sessionStorage.setItem(SESSION_KEY, value);
-      else sessionStorage.removeItem(SESSION_KEY);
+      if (value) sessionStorage.setItem(PORTAL_API_KEY_SESSION, value);
+      else sessionStorage.removeItem(PORTAL_API_KEY_SESSION);
     } catch {
       /* ignore */
     }
   }, []);
+
+  useEffect(() => {
+    if (connection?.status === "READY") {
+      clearPortalApiKey();
+    }
+  }, [connection?.status]);
 
   const completeAttach = useCallback(
     async (code: string, session: SessionInfo, attemptId: string) => {
@@ -330,6 +361,7 @@ export function ConnectWhatsApp({
             waba_id: wabaId,
             phone_number_id: phoneNumberId,
             meta_business_id: businessId || undefined,
+            state: esStateRef.current || undefined,
           }),
         },
       );
@@ -385,6 +417,8 @@ export function ConnectWhatsApp({
             `Start failed (${startRes.status})`;
           throw new Error(message);
         }
+        esStateRef.current =
+          typeof startPayload?.state === "string" ? startPayload.state : null;
         await refreshConnection();
 
         window.FB!.login(
@@ -446,38 +480,6 @@ export function ConnectWhatsApp({
 
   const relative = formatRelative(connection?.updatedAt ?? null);
 
-  const submitPin = useCallback(async () => {
-    setError(null);
-    if (!/^\d{6}$/.test(pin.trim())) {
-      setError("PIN must be exactly 6 digits.");
-      return;
-    }
-    setBusy(true);
-    try {
-      const response = await fetch(
-        `${apiBaseUrl.replace(/\/$/, "")}/v1/whatsapp/register-phone`,
-        {
-          method: "POST",
-          headers: authHeaders(),
-          body: JSON.stringify({ pin: pin.trim() }),
-        },
-      );
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const message =
-          payload?.error?.message || `Register failed (${response.status})`;
-        const correlation = payload?.error?.correlation_id;
-        throw new Error(correlation ? `${message} (${correlation})` : message);
-      }
-      setPin("");
-      await refreshConnection();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Register failed");
-    } finally {
-      setBusy(false);
-    }
-  }, [apiBaseUrl, authHeaders, pin, refreshConnection]);
-
   const submitWebhook = useCallback(async () => {
     setError(null);
     setBusy(true);
@@ -517,7 +519,10 @@ export function ConnectWhatsApp({
         const correlation = payload?.error?.correlation_id;
         throw new Error(correlation ? `${message} (${correlation})` : message);
       }
-      await refreshConnection();
+      const next = await refreshConnection();
+      if (next?.status === "READY") {
+        clearPortalApiKey();
+      }
       if (payload?.checks) {
         const failed = Object.entries(payload.checks as Record<string, boolean>)
           .filter(([, ok]) => !ok)
@@ -532,6 +537,88 @@ export function ConnectWhatsApp({
       setBusy(false);
     }
   }, [apiBaseUrl, authHeaders, refreshConnection]);
+
+  const submitPin = useCallback(async () => {
+    setError(null);
+    if (!/^\d{6}$/.test(pin.trim())) {
+      setError("PIN must be exactly 6 digits.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const response = await fetch(
+        `${apiBaseUrl.replace(/\/$/, "")}/v1/whatsapp/register-phone`,
+        {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ pin: pin.trim() }),
+        },
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message =
+          payload?.error?.message || `Register failed (${response.status})`;
+        const correlation = payload?.error?.correlation_id;
+        throw new Error(correlation ? `${message} (${correlation})` : message);
+      }
+      setPin("");
+      // Auto-chain: webhook → health (PIN is the only required human step).
+      const webhookRes = await fetch(
+        `${apiBaseUrl.replace(/\/$/, "")}/v1/whatsapp/provision-webhook`,
+        { method: "POST", headers: authHeaders() },
+      );
+      const webhookPayload = await webhookRes.json().catch(() => ({}));
+      if (!webhookRes.ok) {
+        const message =
+          webhookPayload?.error?.message ||
+          `Webhook provision failed (${webhookRes.status})`;
+        throw new Error(message);
+      }
+      const healthRes = await fetch(
+        `${apiBaseUrl.replace(/\/$/, "")}/v1/whatsapp/health-check`,
+        { method: "POST", headers: authHeaders() },
+      );
+      const healthPayload = await healthRes.json().catch(() => ({}));
+      if (!healthRes.ok) {
+        const message =
+          healthPayload?.error?.message ||
+          `Health check failed (${healthRes.status})`;
+        throw new Error(message);
+      }
+      const next = await refreshConnection();
+      if (next?.status === "READY") {
+        clearPortalApiKey();
+      } else if (healthPayload?.checks) {
+        const failed = Object.entries(
+          healthPayload.checks as Record<string, boolean>,
+        )
+          .filter(([, ok]) => !ok)
+          .map(([key]) => key);
+        if (failed.length) {
+          setError(`Health failed: ${failed.join(", ")}`);
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Register failed");
+      await refreshConnection();
+    } finally {
+      setBusy(false);
+    }
+  }, [apiBaseUrl, authHeaders, pin, refreshConnection]);
+
+  useEffect(() => {
+    const status = connection?.status;
+    if (!status || busy || !apiKey.trim()) return;
+    if (status === "WEBHOOK_PENDING" && autoStepRef.current !== "webhook") {
+      autoStepRef.current = "webhook";
+      void submitWebhook();
+      return;
+    }
+    if (status === "HEALTH_CHECK_PENDING" && autoStepRef.current !== "health") {
+      autoStepRef.current = "health";
+      void submitHealth();
+    }
+  }, [apiKey, busy, connection?.status, submitHealth, submitWebhook]);
 
   const submitRetry = useCallback(async () => {
     setError(null);
@@ -705,10 +792,19 @@ export function ConnectWhatsApp({
           </p>
         ) : null}
         {connection.recoveryTarget === "EMBEDDED_SIGNUP_STARTED" ? (
-          <p className="copy">
-            This error requires reconnecting via Embedded Signup (Connect
-            WhatsApp), not Retry.
-          </p>
+          <>
+            <p className="copy">
+              This error requires reconnecting via Embedded Signup.
+            </p>
+            <button
+              type="button"
+              className="cta"
+              onClick={launch}
+              disabled={busy || !sdkReady || !apiKey.trim()}
+            >
+              {busy ? "Connecting…" : "Connect WhatsApp"}
+            </button>
+          </>
         ) : (
           <button
             type="button"
@@ -729,8 +825,9 @@ export function ConnectWhatsApp({
       <p className="eyebrow">WhatsApp</p>
       <h2>Connect WhatsApp</h2>
       <p className="copy">
-        Interim auth: paste the tenant API key issued for this workspace, then
-        launch Meta Embedded Signup.
+        {hideApiKeyInput
+          ? "Launch Meta Embedded Signup to connect your WhatsApp Business account. After the popup, enter the 6-digit PIN — webhook and health continue automatically."
+          : "Paste the tenant API key for this workspace (from your invite), then launch Meta Embedded Signup. After PIN, webhook and health continue automatically."}
       </p>
       {connection ? (
         <p className="meta">
@@ -750,21 +847,23 @@ export function ConnectWhatsApp({
           ) : null}
         </p>
       ) : null}
-      <label className="field">
-        <span>API key</span>
-        <input
-          type="password"
-          autoComplete="off"
-          value={apiKey}
-          onChange={(e) => persistKey(e.target.value)}
-          placeholder="omni_…"
-        />
-      </label>
+      {hideApiKeyInput ? null : (
+        <label className="field">
+          <span>API key</span>
+          <input
+            type="password"
+            autoComplete="off"
+            value={apiKey}
+            onChange={(e) => persistKey(e.target.value)}
+            placeholder="omni_…"
+          />
+        </label>
+      )}
       <button
         type="button"
         className="cta"
         onClick={launch}
-        disabled={busy || !sdkReady}
+        disabled={busy || !sdkReady || !apiKey.trim()}
       >
         {busy ? "Connecting…" : sdkReady ? "Connect WhatsApp" : "Loading Meta…"}
       </button>
