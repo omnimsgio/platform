@@ -75,7 +75,11 @@ _HTML = """<!DOCTYPE html>
       width: 100%; font: inherit; padding: 0.65rem 0.75rem; border: 1px solid var(--line);
       border-radius: 0.5rem;
     }
-    textarea { min-height: 4.5rem; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85rem; }
+    textarea {
+      min-height: 4.5rem;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 0.85rem;
+    }
     .row { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.85rem; align-items: end; }
     .row > div { flex: 1; min-width: 12rem; }
     button {
@@ -110,7 +114,8 @@ _HTML = """<!DOCTYPE html>
 
     <div class="card">
       <label for="token">Access token</label>
-      <textarea id="token" placeholder="EAAB… or EAAx…" autocomplete="off" spellcheck="false"></textarea>
+      <textarea id="token" placeholder="EAAB… or EAAx…"
+        autocomplete="off" spellcheck="false"></textarea>
       <div class="row">
         <div>
           <label for="bid">Business ID</label>
@@ -124,7 +129,8 @@ _HTML = """<!DOCTYPE html>
       </div>
       <p class="note">
         Production OmniMsg uses System User <code>omnimsg_api</code> (server-to-server) on
-        <code>https://api.omnimsg.io</code>. This page is for App Review demonstration with a User token.
+        <code>https://api.omnimsg.io</code>.
+        This page is for App Review demonstration with a User token.
       </p>
     </div>
 
