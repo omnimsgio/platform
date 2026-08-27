@@ -30,6 +30,7 @@ from omnimsg_common.whatsapp_lifecycle import messaging_ready_statuses
 from sqlalchemy import select
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from omnimsg_gateway.app_review_bm_runner import mount_app_review_bm_runner
 from omnimsg_gateway.meta_webhook import (
     classify_webhook_kind,
     extract_external_event_id,
@@ -189,7 +190,7 @@ async def discovery(request: Request) -> dict[str, str]:
     """Public discovery document (ADR-0021)."""
     settings = get_settings()
     contract = _contract(request)
-    return {
+    payload = {
         "status": "ok",
         "name": "OmniMsg API",
         "version": settings.app_version,
@@ -201,6 +202,15 @@ async def discovery(request: Request) -> dict[str, str]:
         "health": "/health",
         "version_url": "/version",
     }
+    if settings.feature_app_review_bm_runner:
+        payload["app_review_bm_runner"] = "/app-review/bm-runner"
+    if settings.feature_app_review_bm_demo:
+        payload["app_review_bm_discover"] = "/app-review/bm-discover"
+    return payload
+
+
+# Temporary Meta App Review BM S2S demo (disable FEATURE_APP_REVIEW_BM_* after Advanced).
+mount_app_review_bm_runner(app)
 
 
 @app.get("/version")
