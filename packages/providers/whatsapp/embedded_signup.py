@@ -180,6 +180,43 @@ class MetaEmbeddedSignupClient:
         )
         return self._parse(response, correlation_id=correlation_id, op="register_phone")
 
+    def share_credit_line(
+        self,
+        *,
+        credit_line_id: str,
+        waba_id: str,
+        currency: str,
+        system_token: str,
+        correlation_id: str,
+    ) -> dict[str, Any]:
+        """Share the partner credit line and attach it to a client WABA.
+
+        POST /{credit_line_id}/whatsapp_credit_sharing_and_attach
+        with waba_id and waba_currency as query params (system user token).
+        """
+        url = (
+            f"{self._base_url}/{self._api_version}/"
+            f"{credit_line_id.strip()}/whatsapp_credit_sharing_and_attach"
+        )
+        logger.info(
+            "meta es share_credit_line waba_id=%s correlation_id=%s",
+            waba_id,
+            correlation_id,
+        )
+        response = self._client.post(
+            url,
+            params={
+                "waba_id": waba_id.strip(),
+                "waba_currency": currency.strip(),
+            },
+            headers={"Authorization": f"Bearer {system_token.strip()}"},
+        )
+        return self._parse(
+            response,
+            correlation_id=correlation_id,
+            op="share_credit_line",
+        )
+
     def _parse(
         self,
         response: httpx.Response,

@@ -630,6 +630,7 @@ components:
         - status
         - already_attached
         - correlation_id
+        - credit_line_attached
       properties:
         account_id:
           type: string
@@ -655,6 +656,9 @@ components:
         status_reason:
           type: string
           nullable: true
+        credit_line_attached:
+          type: boolean
+          description: True when the partner credit line was attached to this WABA
 
     EmbeddedSignupStartResponse:
       type: object
@@ -1049,6 +1053,7 @@ components:
         correlation_id: req_01j6zq8k2n3p4r5s6t7u8v9w0b
         meta_business_id: "1329905112443890"
         status_reason: PHONE_PENDING
+        credit_line_attached: false
     ErrorValidation:
       summary: Validation failure
       value:

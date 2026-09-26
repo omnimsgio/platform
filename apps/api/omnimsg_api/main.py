@@ -130,6 +130,7 @@ class EmbeddedSignupCompleteResponse(BaseModel):
     correlation_id: str
     meta_business_id: str | None = None
     status_reason: str | None = None
+    credit_line_attached: bool = False
 
 
 class EmbeddedSignupStartResponse(BaseModel):
@@ -998,6 +999,7 @@ async def complete_embedded_signup(
         correlation_id=result.correlation_id,
         meta_business_id=result.meta_business_id,
         status_reason=result.status_reason,
+        credit_line_attached=result.credit_line_attached,
     )
 
 

@@ -57,6 +57,7 @@ class AttachResult:
     already_attached: bool
     meta_business_id: str | None
     status_reason: str | None = None
+    credit_line_attached: bool = False
 
 
 class EmbeddedSignupConflictError(Exception):
@@ -256,6 +257,7 @@ class EmbeddedSignupService:
                     already_attached=True,
                     meta_business_id=existing.meta_business_id,
                     status_reason=existing.status_reason,
+                    credit_line_attached=existing.credit_line_attached,
                 )
 
         if not self._settings.meta_app_id or not self._settings.meta_app_secret:
@@ -383,6 +385,14 @@ class EmbeddedSignupService:
                 )
                 raise
 
+            credit_attached = self._share_credit_line(
+                client,
+                account_id=account_id,
+                waba_id=waba_id,
+                tenant_id=tenant_id,
+                correlation_id=correlation_id,
+            )
+
             self._audit_attached(
                 tenant_id=tenant_id,
                 api_key_id=api_key_id,
@@ -411,10 +421,78 @@ class EmbeddedSignupService:
                 already_attached=False,
                 meta_business_id=meta_business_id,
                 status_reason=REASON_PHONE_PENDING,
+                credit_line_attached=credit_attached,
             )
         finally:
             if owns_client:
                 client.close()
+
+    def _share_credit_line(
+        self,
+        client: MetaEmbeddedSignupClient,
+        *,
+        account_id: str,
+        waba_id: str,
+        tenant_id: str,
+        correlation_id: str,
+    ) -> bool:
+        """Attach the partner credit line. Failure does not fail Embedded Signup."""
+        credit_line_id = (self._settings.meta_extended_credit_line_id or "").strip()
+        system_token = (self._settings.meta_business_access_token or "").strip()
+        currency = (self._settings.meta_credit_line_currency or "").strip() or "EUR"
+        if not credit_line_id or not system_token:
+            logger.info(
+                "es credit line skipped tenant_id=%s waba_id=%s correlation_id=%s",
+                tenant_id,
+                waba_id,
+                correlation_id,
+            )
+            return False
+
+        with session_scope() as session:
+            row = session.get(TenantWhatsappAccount, account_id)
+            if row is None:
+                return False
+            if row.credit_line_attached:
+                return True
+
+        try:
+            payload = client.share_credit_line(
+                credit_line_id=credit_line_id,
+                waba_id=waba_id,
+                currency=currency,
+                system_token=system_token,
+                correlation_id=correlation_id,
+            )
+        except MetaGraphError as exc:
+            logger.error(
+                "es credit line share failed tenant_id=%s waba_id=%s "
+                "correlation_id=%s error_code=%s",
+                tenant_id,
+                waba_id,
+                correlation_id,
+                exc.error_code,
+            )
+            self._capture_sentry(exc, correlation_id=correlation_id, tenant_id=tenant_id)
+            return False
+
+        allocation_id = str(payload.get("allocation_config_id") or "").strip() or None
+        with session_scope() as session:
+            row = session.get(TenantWhatsappAccount, account_id)
+            if row is None:
+                return False
+            row.credit_line_attached = True
+            if allocation_id is not None:
+                row.credit_allocation_config_id = allocation_id
+        logger.info(
+            "es credit line attached tenant_id=%s waba_id=%s correlation_id=%s "
+            "allocation_config_id=%s",
+            tenant_id,
+            waba_id,
+            correlation_id,
+            allocation_id,
+        )
+        return True
 
     def _find_by_phone(self, phone_number_id: str) -> TenantWhatsappAccount | None:
         with session_scope() as session:

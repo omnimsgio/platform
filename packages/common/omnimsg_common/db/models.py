@@ -123,6 +123,10 @@ class TenantWhatsappAccount(Base):
         default=False,
         server_default=text("false"),
     )
+    credit_allocation_config_id: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
     status: Mapped[str] = mapped_column(
         String(64),
         nullable=False,

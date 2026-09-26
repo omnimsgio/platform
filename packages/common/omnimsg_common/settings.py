@@ -71,7 +71,21 @@ class Settings(BaseSettings):
         default="",
         description=(
             "Business System User token for partner BM ops / App Review S2S demo "
-            "(META_BUSINESS_ACCESS_TOKEN); never expose to browsers"
+            "and credit-line sharing (META_BUSINESS_ACCESS_TOKEN); never expose to browsers"
+        ),
+    )
+    meta_extended_credit_line_id: str = Field(
+        default="",
+        description=(
+            "Partner extended credit line id for WABA sharing "
+            "(META_EXTENDED_CREDIT_LINE_ID); empty skips attach"
+        ),
+    )
+    meta_credit_line_currency: str = Field(
+        default="EUR",
+        description=(
+            "ISO-4217 currency for credit-line sharing "
+            "(META_CREDIT_LINE_CURRENCY); Meta requires waba_currency"
         ),
     )
     feature_app_review_bm_runner: bool = Field(
