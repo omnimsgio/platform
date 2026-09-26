@@ -1,0 +1,11 @@
+Hi Richard,
+
+Thank you for the clarification. We will resubmit business_management with:
+1) An updated use case that states this permission is server-to-server with no end-user UI, and lists the backend Graph steps end-to-end.
+2) A detailed why/where justification for business_management on our System User omnimsg_api.
+3) A new screencast that shows only the backend: System User token usage (redacted), then live Graph calls for business identity and owned WABAs — no product/browser UI.
+
+We will follow the Server-to-Server Apps guide (Platform = Website → https://omnimsg.io).
+
+Best regards,
+Ante

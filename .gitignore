@@ -221,6 +221,9 @@ __marimo__/
 # Local scratch / uncommitted assets
 .temp/
 
+# App Review screencast media + capture harness (kept out of git; see notes.md)
+docs/meta/app-review/*/recordings/
+
 # Node (apps/web also has its own .gitignore)
 node_modules/
 apps/web/.next/
