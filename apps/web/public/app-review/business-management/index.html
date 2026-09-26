@@ -122,6 +122,121 @@
         padding: 0.1rem 0.3rem;
         border-radius: 0.25rem;
       }
+      /* Tooltips: rendered in-page (not native title=) so they are visible in
+         App Review screen recordings. Shown on hover/focus, or forced open with
+         .tip-show for narrated walkthroughs. */
+      .tip { position: relative; }
+      .tip::after {
+        content: attr(data-tip);
+        position: absolute;
+        left: 50%;
+        bottom: calc(100% + 11px);
+        transform: translateX(-50%);
+        width: max-content;
+        max-width: 24rem;
+        background: var(--navy);
+        color: #eaf6ff;
+        font-family: var(--font);
+        font-size: 0.84rem;
+        font-weight: 500;
+        line-height: 1.45;
+        letter-spacing: 0;
+        text-transform: none;
+        text-align: left;
+        white-space: normal;
+        padding: 0.6rem 0.8rem;
+        border-radius: 0.5rem;
+        box-shadow: 0 12px 28px rgba(10, 17, 40, 0.3);
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        z-index: 60;
+      }
+      .tip::before {
+        content: "";
+        position: absolute;
+        left: 50%;
+        bottom: calc(100% + 5px);
+        transform: translateX(-50%);
+        border: 6px solid transparent;
+        border-top-color: var(--navy);
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        z-index: 61;
+      }
+      .tip.below::after {
+        bottom: auto;
+        top: calc(100% + 11px);
+      }
+      .tip.below::before {
+        bottom: auto;
+        top: calc(100% + 5px);
+        border-top-color: transparent;
+        border-bottom-color: var(--navy);
+      }
+      .tip:hover::after,
+      .tip:hover::before,
+      .tip:focus-visible::after,
+      .tip:focus-visible::before,
+      .tip.tip-show::after,
+      .tip.tip-show::before {
+        opacity: 1;
+        visibility: visible;
+      }
+      .tip-hint {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.05rem;
+        height: 1.05rem;
+        margin-left: 0.35rem;
+        border-radius: 50%;
+        border: 1px solid var(--line);
+        background: #fff;
+        color: var(--blue);
+        font-size: 0.7rem;
+        font-weight: 700;
+        cursor: help;
+      }
+      .legend {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 1rem;
+        padding: 1.1rem 1.2rem;
+        margin-bottom: 1rem;
+      }
+      .legend h2 {
+        font-family: var(--display);
+        font-size: 1.05rem;
+        margin: 0 0 0.7rem;
+      }
+      .legend dl {
+        margin: 0;
+        display: grid;
+        gap: 0.55rem;
+      }
+      .legend div {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 0.5rem;
+      }
+      .legend dt {
+        font-weight: 650;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--blue);
+        min-width: 8.5rem;
+      }
+      .legend dd {
+        margin: 0;
+        font-size: 0.9rem;
+        color: var(--muted);
+        line-height: 1.45;
+        flex: 1 1 18rem;
+      }
       .status-bar {
         display: none;
         margin-bottom: 1rem;
@@ -255,14 +370,71 @@
           <li data-step="3">Backend calls Meta Graph with System User omnimsg_api</li>
           <li data-step="4">OmniMsg shows businesses and owned WABAs</li>
         </ul>
-        <button type="button" class="cta" id="discover">
+        <button
+          type="button"
+          class="cta tip below"
+          id="discover"
+          data-tip="Button: starts Business Manager asset discovery. OmniMsg's backend sends three Graph API requests to Meta using our System User access token, then prints each request and its unmodified response below. Nothing is sent from your browser to Meta."
+        >
           Discover Business Assets
         </button>
-        <p class="note">
+        <p
+          class="note tip"
+          id="system-user-note"
+          data-tip="Why no Facebook Login appears in this recording: this permission is used only by our server. The System User access token is stored on api.omnimsg.io and never reaches the browser, so there is no end-user login or permission grant screen to record."
+        >
           Production use of <code>business_management</code> is server-to-server
           via System User <code>omnimsg_api</code>. There is no end-user Facebook
           Login or permission grant screen for this permission.
         </p>
+      </section>
+
+      <section class="legend" aria-label="How to read this page">
+        <h2>How to read the results below</h2>
+        <dl>
+          <div>
+            <dt>Call A, B, C</dt>
+            <dd>
+              The three Graph API requests OmniMsg's backend sends to Meta, in
+              the order they run.
+            </dd>
+          </div>
+          <div>
+            <dt>Primary</dt>
+            <dd>
+              Label on a request that is required for the use case — reading the
+              business portfolio and the WhatsApp Business Accounts it owns.
+            </dd>
+          </div>
+          <div>
+            <dt>Informative</dt>
+            <dd>
+              Label on a request shown for completeness only; its result is not
+              required for onboarding.
+            </dd>
+          </div>
+          <div>
+            <dt>HTTP 200</dt>
+            <dd>
+              Green status meaning Meta accepted the request and returned data. A
+              red status would mean Meta rejected it.
+            </dd>
+          </div>
+          <div>
+            <dt>Grey code block</dt>
+            <dd>
+              The exact request path OmniMsg sent, including the Graph API
+              version.
+            </dd>
+          </div>
+          <div>
+            <dt>Dark code block</dt>
+            <dd>
+              Meta's unmodified JSON response body. Access tokens are never
+              displayed on this page.
+            </dd>
+          </div>
+        </dl>
       </section>
 
       <div class="status-bar" id="status" role="status"></div>
@@ -309,52 +481,84 @@
           statusEl.querySelector(".body").textContent = text;
         }
 
+        var ROLE_TIPS = {
+          primary:
+            "Primary: this request is required for the use case. OmniMsg needs its result to attach the correct WhatsApp Business Account during onboarding.",
+          informative:
+            "Informative: shown for completeness. OmniMsg does not depend on this result, because a System User reads its assigned business directly in calls B and C.",
+        };
+
+        function el(tag, className, text) {
+          var node = document.createElement(tag);
+          if (className) node.className = className;
+          if (text != null) node.textContent = text;
+          return node;
+        }
+
+        function tip(node, text) {
+          node.classList.add("tip");
+          node.setAttribute("data-tip", text);
+          node.setAttribute("tabindex", "0");
+          return node;
+        }
+
         function renderCalls(data) {
           var calls = data.calls || [];
+          results.textContent = "";
           if (!calls.length) {
             results.className = "panel empty";
             results.textContent = "No Graph calls returned.";
             return;
           }
           results.className = "";
-          results.innerHTML = calls
-            .map(function (c) {
-              var ok = c.http_status >= 200 && c.http_status < 300;
-              var role = c.role || "primary";
-              var label = c.label ? "Call " + c.label : "Graph call";
-              return (
-                '<div class="panel">' +
-                '<div class="label-row">' +
-                '<span class="pill">' +
-                label +
-                "</span>" +
-                '<span class="pill ' +
-                role +
-                '">' +
-                role +
-                "</span>" +
-                "</div>" +
-                (c.note
-                  ? '<p class="call-note"></p>'
-                  : "") +
-                '<div class="path">' +
-                (c.method || "GET") +
-                " " +
-                (c.path || "") +
-                "</div>" +
-                '<div class="http ' +
-                (ok ? "ok" : "bad") +
-                '">HTTP ' +
-                c.http_status +
-                "</div>" +
-                "<pre>" +
-                JSON.stringify(c.body, null, 2) +
-                "</pre></div>"
-              );
-            })
-            .join("");
-          results.querySelectorAll(".call-note").forEach(function (el, i) {
-            if (calls[i] && calls[i].note) el.textContent = calls[i].note;
+
+          calls.forEach(function (c, i) {
+            var ok = c.http_status >= 200 && c.http_status < 300;
+            var role = c.role || "primary";
+            var panel = el("div", "panel");
+
+            var labelRow = el("div", "label-row");
+            labelRow.appendChild(
+              tip(
+                el("span", "pill", c.label ? "Call " + c.label : "Graph call"),
+                "Request " +
+                  (i + 1) +
+                  " of " +
+                  calls.length +
+                  " sent by OmniMsg's backend to the Meta Graph API using our System User access token."
+              )
+            );
+            labelRow.appendChild(
+              tip(
+                el("span", "pill " + role, role),
+                ROLE_TIPS[role] || ROLE_TIPS.primary
+              )
+            );
+            panel.appendChild(labelRow);
+
+            if (c.note) panel.appendChild(el("p", "call-note", c.note));
+
+            panel.appendChild(
+              tip(
+                el("div", "path", (c.method || "GET") + " " + (c.path || "")),
+                "The exact Graph API request OmniMsg's backend sent, including the API version. No access token is shown here or anywhere on this page."
+              )
+            );
+            panel.appendChild(
+              tip(
+                el("div", "http " + (ok ? "ok" : "bad"), "HTTP " + c.http_status),
+                ok
+                  ? "HTTP " +
+                      c.http_status +
+                      ": Meta accepted the request and returned the data below."
+                  : "HTTP " +
+                      c.http_status +
+                      ": Meta rejected the request. The error body is shown below."
+              )
+            );
+            panel.appendChild(el("pre", null, JSON.stringify(c.body, null, 2)));
+
+            results.appendChild(panel);
           });
         }
 

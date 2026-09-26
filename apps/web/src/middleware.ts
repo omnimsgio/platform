@@ -7,6 +7,15 @@ import {
   surfaceForHost,
 } from "@/lib/hosts";
 
+// Dead URLs from the v1/v2 App Review submissions. Those pages served recording
+// aids rather than the demo and have been removed, but the links live on in
+// earlier Meta submissions, so point them at the current demo instead of a 404.
+const LEGACY_APP_REVIEW_REDIRECTS: Record<string, string> = {
+  "/app-review/business-management.html": "/app-review/business-management",
+  "/app-review/business-management-v2-checklist.html":
+    "/app-review/business-management",
+};
+
 export function middleware(request: NextRequest) {
   const host = normalizeHost(request.headers.get("host"));
   const surface = surfaceForHost(host);
@@ -32,6 +41,12 @@ export function middleware(request: NextRequest) {
 
   // App Review static demos under public/app-review/ — skip /www|/portal rewrite.
   if (pathname === "/app-review" || pathname.startsWith("/app-review/")) {
+    const legacyTarget = LEGACY_APP_REVIEW_REDIRECTS[pathname];
+    if (legacyTarget) {
+      const legacyUrl = request.nextUrl.clone();
+      legacyUrl.pathname = legacyTarget;
+      return NextResponse.redirect(legacyUrl, 301);
+    }
     if (!pathname.endsWith(".html")) {
       const reviewUrl = request.nextUrl.clone();
       reviewUrl.pathname = `${pathname.replace(/\/$/, "")}/index.html`;
